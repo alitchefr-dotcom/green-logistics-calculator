@@ -64,9 +64,9 @@ t = {
     ),
     "equipment": "סוג הציוד" if is_heb else "Equipment Category",
     "container_type": (
-        "סוג מכולה / רמת סיכון"
+        "סוג מכולה / סיווג בטיחות"
         if is_heb
-        else "Container Type & Hazard Category"
+        else "Container Type & Safety Classification"
     ),
     "hs": "קוד מכס (HS Code)" if is_heb else "HS Code",
     "units": "כמות יחידות/מכולות" if is_heb else "Number of Units / Containers",
@@ -295,43 +295,55 @@ st.sidebar.header(t["cargo_header"])
 equipment_type = st.sidebar.selectbox(
     t["equipment"],
     [
-        "BESS Container (Battery Energy Storage Systems)",
-        "MVS - Medium Voltage Stations / Skids",
-        "MVS Accessories & Switchgear",
+        "BESS Container (Battery Energy Storage Systems - DG Class 9)",
+        "MVS - Medium Voltage Stations / Skids (Non-Hazmat / Non-DG)",
+        "MVS Accessories & Switchgear (Non-Hazmat)",
         "Solar Panels (PV Modules)",
         "Inverters & Transformers",
         "Wind Turbine Components",
     ],
 )
 
-container_thc_defaults = {
-    "20ft SOC Container (BESS / MVS Skids)": 350.0,
-    "40ft / 40HC Standard Dry Container": 280.0,
-    "40ft / 40HC Dangerous Goods (DG / Hazmat Class 9)": 520.0,
-    "Special Equipment (Open Top / Flat Rack)": 480.0,
-}
+is_bess = "BESS" in equipment_type
+is_mvs = "MVS" in equipment_type
+
+# Separate Container / Safety Options for BESS vs MVS
+if is_bess:
+  container_options = {
+      "20ft SOC BESS (DG Class 9 / Hazmat)": 520.0,
+      "40ft / 40HC SOC BESS (DG Class 9 / Hazmat)": 580.0,
+  }
+elif is_mvs:
+  container_options = {
+      "20ft SOC MVS Skid (Non-Hazmat / Standard Cargo)": 350.0,
+      "40ft / 40HC SOC MVS Skid (Non-Hazmat / Standard Cargo)": 450.0,
+      "Special Equipment MVS (Flat Rack / Open Top)": 480.0,
+  }
+else:
+  container_options = {
+      "40ft / 40HC Standard Dry Container": 280.0,
+      "Special Equipment (Open Top / Flat Rack)": 480.0,
+  }
 
 container_type = st.sidebar.selectbox(
-    t["container_type"],
-    list(container_thc_defaults.keys()),
-    index=0 if "BESS" in equipment_type or "MVS" in equipment_type else 1,
+    t["container_type"], list(container_options.keys()), index=0
 )
 
-default_thc_value = container_thc_defaults[container_type]
+default_thc_value = container_options[container_type]
 
 hs_defaults = {
-    "BESS Container (Battery Energy Storage Systems)": "8507.60",
-    "MVS - Medium Voltage Stations / Skids": "8504.22",
-    "MVS Accessories & Switchgear": "8537.20",
+    "BESS Container (Battery Energy Storage Systems - DG Class 9)": "8507.60",
+    "MVS - Medium Voltage Stations / Skids (Non-Hazmat / Non-DG)": "8504.22",
+    "MVS Accessories & Switchgear (Non-Hazmat)": "8537.20",
     "Solar Panels (PV Modules)": "8541.43",
     "Inverters & Transformers": "8504.40",
     "Wind Turbine Components": "8502.31",
 }
 
 eu_mfn_customs_rates = {
-    "BESS Container (Battery Energy Storage Systems)": 2.7,
-    "MVS - Medium Voltage Stations / Skids": 2.1,
-    "MVS Accessories & Switchgear": 2.1,
+    "BESS Container (Battery Energy Storage Systems - DG Class 9)": 2.7,
+    "MVS - Medium Voltage Stations / Skids (Non-Hazmat / Non-DG)": 2.1,
+    "MVS Accessories & Switchgear (Non-Hazmat)": 2.1,
     "Solar Panels (PV Modules)": 0.0,
     "Inverters & Transformers": 2.1,
     "Wind Turbine Components": 2.7,
@@ -345,7 +357,7 @@ container_weight = st.sidebar.number_input(
     t["weight"],
     min_value=1.0,
     max_value=100.0,
-    value=35.0 if "MVS" in equipment_type else 45.0,
+    value=30.0 if is_mvs else 45.0,
     step=1.0,
 )
 total_weight = container_weight * units_count
@@ -421,10 +433,7 @@ total_inland_transport_usd = inland_per_unit_usd * units_count
 
 st.sidebar.divider()
 st.sidebar.header(t["demurrage_header"])
-
-# Allows 0 port free days
 free_days = st.sidebar.number_input(t["free_days"], min_value=0, value=14, step=1)
-
 demurrage_daily_rate = st.sidebar.number_input(
     t["demurrage_rate"], min_value=0.0, value=120.0, step=10.0
 )
@@ -470,21 +479,36 @@ landed_net_loc = total_landed_cost_net_usd * ex_rate
 cost_per_unit_loc = cost_per_unit_usd * ex_rate
 
 # ---------------------------------------------------------
-# UI Display & Alerts
+# UI Display & Safety Alerts
 # ---------------------------------------------------------
 site_display = final_destination if final_destination else "N/A"
 if is_heb:
   st.info(
       f"📍 **מסלול:** מ-**{origin_country}** דרך **{selected_port}** ➔"
-      f" **{dest_country}** | **סוג מכולה:** `{container_type}` | **אתר"
-      f" מסירה:** `{site_display}`"
+      f" **{dest_country}** | **ציוד:** `{equipment_type}` | **אתר מסירה:**"
+      f" `{site_display}`"
   )
 else:
   st.info(
       f"📍 **Route:** From **{origin_country}** via **{selected_port}** ➔"
-      f" **{dest_country}** | **Container:** `{container_type}` | **Site:**"
+      f" **{dest_country}** | **Cargo:** `{equipment_type}` | **Site:**"
       f" `{site_display}`"
   )
+
+# Dangerous Goods alert ONLY for BESS
+if is_bess:
+  if is_heb:
+    st.warning(
+        "🔥 **התראת חומרים מסוכנים (BESS - DG Class 9 / UN 3536):** סוללות"
+        " ליתיום-יוון מוגדרות כחומר מסוכן. דורש הצהרת מסוכנים (DGD), מדבקות"
+        " אזהרה, ואישור איחסון/סדרנות מסוכנים בנמל."
+    )
+  else:
+    st.warning(
+        "🔥 **Dangerous Goods Alert (BESS - DG Class 9 / UN 3536):** Lithium-ion"
+        " batteries require Dangerous Goods Declaration (DGD), hazard"
+        " placarding, and port DG handling permits."
+    )
 
 if container_weight >= 40.0:
   if is_heb:
@@ -718,7 +742,7 @@ def generate_excel_bytes():
           "סוג מכולה / סיווג" if is_heb else "Container Type",
           container_type,
           container_type,
-          "Container Category",
+          "Safety Category",
       ],
       [
           "נמל פקידה" if is_heb else "Port of Discharge",
