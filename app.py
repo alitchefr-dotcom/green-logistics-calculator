@@ -221,6 +221,16 @@ hs_defaults = {
     "Wind Turbine Components": "8502.31",
 }
 
+# Real MFN Duty Rates for EU/Non-Israel (BESS = 2.7%, Solar = 0.0%, MVS = 2.1%)
+eu_mfn_customs_rates = {
+    "BESS Container (Battery Energy Storage Systems)": 2.7,
+    "MVS - Medium Voltage Stations / Skids": 2.1,
+    "MVS Accessories & Switchgear": 2.1,
+    "Solar Panels (PV Modules)": 0.0,
+    "Inverters & Transformers": 2.1,
+    "Wind Turbine Components": 2.7,
+}
+
 hs_code = st.sidebar.text_input(
     t["hs"], value=hs_defaults.get(equipment_type, "8507.60")
 )
@@ -262,6 +272,7 @@ origin_expenses = st.sidebar.number_input(
 st.sidebar.divider()
 st.sidebar.header(t["tax_header"])
 
+# Dynamic Duty logic: 0% for Israel; real EU MFN rate (e.g. 2.7% for BESS) otherwise
 default_customs = (
     0.0
     if (
@@ -269,11 +280,11 @@ default_customs = (
         or "Haifa" in selected_port
         or "Ashdod" in selected_port
     )
-    else 6.0
+    else eu_mfn_customs_rates.get(equipment_type, 2.7)
 )
 
 customs_rate_input = st.sidebar.number_input(
-    t["customs_rate"], min_value=0.0, value=default_customs, step=0.5
+    t["customs_rate"], min_value=0.0, value=default_customs, step=0.1
 )
 
 fta_active = st.sidebar.checkbox(
