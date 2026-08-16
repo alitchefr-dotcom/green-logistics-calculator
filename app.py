@@ -1,7 +1,7 @@
 import io
 import openpyxl
 import pandas as pd
-import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 from openpyxl.styles import Font
 
@@ -22,25 +22,31 @@ is_heb = lang == "עברית"
 
 t = {
     "title": (
-        "⚡ מחשבון עלויות יבוא, מכס ו-Landed Cost"
+        "⚡ מחשבון עלויות יבוא, מכס ו-Green Landed Cost"
         if is_heb
         else "⚡ Green-Logistics Customs & Landed Cost Calculator"
     ),
     "subtitle": (
-        "מחשבון עלויות יבוא, מכס, רגולציה ו-Landed Cost לתשתיות אנרגיה"
-        " מתחדשת (**BESS**, **MVS**, פאנלים סולאריים, ממירים ושנאים)."
+        "מחשבון עלויות יבוא, מכס, רגולציה, מחזור (EPR), פליטות פחמן (CO₂e)"
+        " ו-Landed Cost לתשתיות אנרגיה (**BESS**, **MVS**, פאנלים סולאריים,"
+        " ממירים ושנאים)."
         if is_heb
         else (
-            "Import Duty, Tax, Regulatory & Landed Cost Calculator for"
-            " Renewable Energy Infrastructure (**BESS**, **MVS Skids**, Solar"
-            " Panels, Inverters & Transformers)."
+            "Import Duty, Tax, Battery Recycling (EPR), Carbon Emissions"
+            " (CO₂e) & Landed Cost Calculator for Renewable Energy"
+            " Infrastructure (**BESS**, **MVS Skids**, Solar Panels, Inverters &"
+            " Transformers)."
         )
     ),
     "route_header": (
         "🌍 מסלול השינוע והנמלים" if is_heb else "🌍 Shipping Route & Ports"
     ),
     "origin": "מדינת מוצא" if is_heb else "Origin Country",
+    "origin_custom": (
+        "הזן מדינת מוצא ידנית" if is_heb else "Enter Custom Origin Country"
+    ),
     "port": "נמל פקידה / שחרור" if is_heb else "Port of Discharge",
+    "port_custom": "הזן שם נמל ידני" if is_heb else "Enter Custom Port Name",
     "dest": "מדינת יעד סופית" if is_heb else "Final Destination Country",
     "final_dest": (
         "יעד מסירה סופי באתר (שם/קואורדינטות)"
@@ -58,9 +64,9 @@ t = {
         else "Exchange Rate (USD to Local Currency)"
     ),
     "cargo_header": (
-        "📋 פרטי המטען, מכולות וקוד מכס"
+        "📋 פרטי המטען, מכולות ויחידות ציוד"
         if is_heb
-        else "📋 Cargo, Container Specifications & Classification"
+        else "📋 Cargo, Containers & Equipment Units"
     ),
     "equipment": "סוג הציוד" if is_heb else "Equipment Category",
     "container_type": (
@@ -69,11 +75,21 @@ t = {
         else "Container Type & Safety Classification"
     ),
     "hs": "קוד מכס (HS Code)" if is_heb else "HS Code",
-    "units": "כמות יחידות/מכולות" if is_heb else "Number of Units / Containers",
-    "weight": (
-        "משקל ברוטו ליחידה (טון)"
+    "num_containers": "כמות מכולות" if is_heb else "Number of Containers",
+    "bess_capacity": (
+        "קיבולת BESS כוללת (MWh)"
         if is_heb
-        else "Gross Weight per Unit (Tonnes)"
+        else "Total BESS System Capacity (MWh)"
+    ),
+    "cargo_units": (
+        "סה\"כ יחידות ציוד (למשל פאנלים/ממירים)"
+        if is_heb
+        else "Total Equipment Units (e.g., Panels/Inverters)"
+    ),
+    "weight": (
+        "משקל ברוטו למכולה (טון)"
+        if is_heb
+        else "Gross Weight per Container (Tonnes)"
     ),
     "cargo_val": (
         "ערך הסחורה במקור ($ USD)"
@@ -81,14 +97,15 @@ t = {
         else "Cargo FOB / EXW Value ($ USD)"
     ),
     "freight_header": (
-        "🚢 עלויות שרשרת האספקה הימית"
+        "🚢 עלויות הובלה וביטוח ימי"
         if is_heb
-        else "🚢 Freight & Supply Chain Costs"
+        else "🚢 Ocean Freight & Insurance"
     ),
     "freight": (
         "הובלה ימית ראשת ($ USD)" if is_heb else "Main Ocean Freight ($ USD)"
     ),
-    "insurance": (
+    "ins_basis": "בסיס חישוב ביטוח" if is_heb else "Insurance Calculation Basis",
+    "insurance_rate": (
         "שיעור ביטוח ימי (%)" if is_heb else "Marine Insurance Rate (%)"
     ),
     "origin_exp": (
@@ -102,21 +119,7 @@ t = {
     "customs_rate": (
         "שיעור מכס רשמי (%)" if is_heb else "Official Customs Duty Rate (%)"
     ),
-    "fta": (
-        "הסכם סחר חופשי פעיל (FTA)"
-        if is_heb
-        else "Free Trade Agreement (FTA Exemption)"
-    ),
-    "fta_note": (
-        "⚠️ דורש תעודת מקור תקפה (EUR.1 / COO)"
-        if is_heb
-        else "⚠️ Requires valid Certificate of Origin (EUR.1 / COO)"
-    ),
-    "green": (
-        "פטור/הטבה ירוקה ייעודית"
-        if is_heb
-        else "Green Incentive / Special Exemption"
-    ),
+    "duty_incentive": "הטבת מכס / פטור" if is_heb else "Customs Duty Incentive",
     "vat": (
         'שיעור מע"מ מקומי במדינת השחרור (%)'
         if is_heb
@@ -133,9 +136,9 @@ t = {
         else "Port Wharfage & Handling ($ USD)"
     ),
     "thc": (
-        "דמי טיפול במסוף (THC) ליחידה ($ USD)"
+        "דמי טיפול במסוף (THC) למכולה ($ USD)"
         if is_heb
-        else "Terminal Handling Charge (THC) per Unit ($ USD)"
+        else "Terminal Handling Charge (THC) per Container ($ USD)"
     ),
     "brokerage": (
         "עמילות מכס ואישורים ($ USD)"
@@ -143,12 +146,12 @@ t = {
         else "Customs Brokerage & Permits ($ USD)"
     ),
     "inland_per_unit": (
-        "הובלה יבשתית מיוחדת ליחידה ($ USD)"
+        "הובלה יבשתית למכולה ($ USD)"
         if is_heb
-        else "Special Heavy Inland Haulage per Unit ($ USD)"
+        else "Special Heavy Inland Haulage per Container ($ USD)"
     ),
     "demurrage_header": (
-        "⏱️ ניהול סיכוני השהיה בנמל (Demurrage)"
+        "⏱️ ניהול סיכוני השהיה בנמל (Demurrage Risk)"
         if is_heb
         else "⏱️ Port Demurrage Risk Estimator"
     ),
@@ -157,11 +160,33 @@ t = {
         if is_heb
         else "Port Free Days Included"
     ),
+    "est_port_days": (
+        "ימי השהיה בפועל בנמל (משוער)"
+        if is_heb
+        else "Estimated Actual Port Dwell Days"
+    ),
     "demurrage_rate": (
         "עלות השהיה יומית למכולה ($/Day)"
         if is_heb
         else "Daily Demurrage Rate per Container ($/Day)"
     ),
+    "recycling_header": (
+        "♻️ מחזור סוללות ואחריות יצרן באירופה (EPR / Battery Reg)"
+        if is_heb
+        else "♻️ EU Battery Recycling & EPR Fee (EU 2023/1542)"
+    ),
+    "recycling_rate": (
+        "הפרשת מחזור סוף חיים ($/kWh)"
+        if is_heb
+        else "End-of-Life Recycling Provision ($/kWh)"
+    ),
+    "green_header": (
+        "🌱 מדדי קיימות ופליטות פחמן (CO₂e)"
+        if is_heb
+        else "🌱 Sustainability & Carbon Emissions (CO₂e)"
+    ),
+    "sea_dist": "מרחק שינוע ימי (ק\"מ)" if is_heb else "Ocean Distance (km)",
+    "land_dist": "מרחק שינוע יבשתי (ק\"מ)" if is_heb else "Inland Distance (km)",
     "cif_metric": "ערך CIF כולל" if is_heb else "Total CIF Value",
     "duty_metric": "תשלום מכס אפקטיבי" if is_heb else "Effective Duty",
     "vat_metric": 'מע"מ לתשלום' if is_heb else "VAT Payable",
@@ -171,7 +196,9 @@ t = {
         else "Net Landed Cost (excl. VAT)"
     ),
     "breakdown_title": (
-        "📊 התפלגות עלויות היבוא" if is_heb else "📊 Landed Cost Breakdown"
+        "📊 ניתוח הצטברות עלויות (Waterfall Chart)"
+        if is_heb
+        else "📊 Cost Accumulation (Waterfall Chart)"
     ),
     "summary_title": (
         "📑 טבלת סיכום שלבי החישוב" if is_heb else "📑 Step-by-Step Summary Table"
@@ -193,11 +220,16 @@ st.divider()
 # ---------------------------------------------------------
 st.sidebar.header(t["route_header"])
 
-origin_country = st.sidebar.selectbox(
+origin_selection = st.sidebar.selectbox(
     t["origin"],
     ["China", "Germany", "USA", "India", "Japan", "South Korea", "Other / אחר"],
     index=0,
 )
+
+if origin_selection == "Other / אחר":
+  origin_country = st.sidebar.text_input(t["origin_custom"], value="Vietnam")
+else:
+  origin_country = origin_selection
 
 port_defaults = {
     "Port of Haifa / Bayport (Israel)": {
@@ -207,6 +239,8 @@ port_defaults = {
         "sym": "₪",
         "rate": 3.70,
         "site": "Carmiel Industrial Zone / GPS: 32.9199, 35.2901",
+        "sea_km": 15000,
+        "land_km": 60,
     },
     "Port of Ashdod (Israel)": {
         "dest": "Israel",
@@ -215,6 +249,8 @@ port_defaults = {
         "sym": "₪",
         "rate": 3.70,
         "site": "Carmiel Industrial Zone / GPS: 32.9199, 35.2901",
+        "sea_km": 15200,
+        "land_km": 170,
     },
     "Port of Burgas (Bulgaria)": {
         "dest": "Bulgaria / Transit to Romania",
@@ -222,23 +258,9 @@ port_defaults = {
         "curr": "€ EUR",
         "sym": "€",
         "rate": 0.92,
-        "site": "",
-    },
-    "Port of Piraeus / Thessaloniki (Greece)": {
-        "dest": "Greece",
-        "vat": 24.0,
-        "curr": "€ EUR",
-        "sym": "€",
-        "rate": 0.92,
-        "site": "",
-    },
-    "Port of Rauma / Vuosaari (Finland)": {
-        "dest": "Finland",
-        "vat": 25.5,
-        "curr": "€ EUR",
-        "sym": "€",
-        "rate": 0.92,
-        "site": "",
+        "site": "Iepuresti Solar Plant, Romania",
+        "sea_km": 14200,
+        "land_km": 320,
     },
     "Port of Constanta (Romania)": {
         "dest": "Romania",
@@ -246,15 +268,69 @@ port_defaults = {
         "curr": "€ EUR",
         "sym": "€",
         "rate": 0.92,
-        "site": "",
+        "site": "Ghimpati Solar Plant, Romania",
+        "sea_km": 14500,
+        "land_km": 280,
     },
-    "Port of Rotterdam / Antwerp (EU Main Port)": {
-        "dest": "EU Main Port",
+    "Port of Piraeus (Greece)": {
+        "dest": "Greece",
+        "vat": 24.0,
+        "curr": "€ EUR",
+        "sym": "€",
+        "rate": 0.92,
+        "site": "Athens Substation Site",
+        "sea_km": 13800,
+        "land_km": 40,
+    },
+    "Port of Thessaloniki (Greece)": {
+        "dest": "Greece",
+        "vat": 24.0,
+        "curr": "€ EUR",
+        "sym": "€",
+        "rate": 0.92,
+        "site": "Northern Greece Substation",
+        "sea_km": 14000,
+        "land_km": 80,
+    },
+    "Port of Rauma (Finland)": {
+        "dest": "Finland",
+        "vat": 25.5,
+        "curr": "€ EUR",
+        "sym": "€",
+        "rate": 0.92,
+        "site": "Tuovila BESS Site, Finland",
+        "sea_km": 18500,
+        "land_km": 210,
+    },
+    "Port of Vuosaari / Helsinki (Finland)": {
+        "dest": "Finland",
+        "vat": 25.5,
+        "curr": "€ EUR",
+        "sym": "€",
+        "rate": 0.92,
+        "site": "Pyhäsalmi BESS Site, Finland",
+        "sea_km": 18300,
+        "land_km": 450,
+    },
+    "Port of Rotterdam (Netherlands)": {
+        "dest": "Netherlands / EU",
         "vat": 21.0,
         "curr": "€ EUR",
         "sym": "€",
         "rate": 0.92,
-        "site": "",
+        "site": "EU Central Hub",
+        "sea_km": 18000,
+        "land_km": 100,
+    },
+    "Port of Antwerp-Bruges (Belgium)": {
+        "dest": "Belgium / EU",
+        "vat": 21.0,
+        "curr": "€ EUR",
+        "sym": "€",
+        "rate": 0.92,
+        "site": "EU Distribution Center",
+        "sea_km": 18100,
+        "land_km": 120,
     },
     "Other Port": {
         "dest": "Other",
@@ -263,20 +339,41 @@ port_defaults = {
         "sym": "$",
         "rate": 1.00,
         "site": "",
+        "sea_km": 15000,
+        "land_km": 100,
     },
 }
 
-selected_port = st.sidebar.selectbox(
+selected_port_key = st.sidebar.selectbox(
     t["port"], list(port_defaults.keys()), index=0
 )
-dest_info = port_defaults[selected_port]
+
+if selected_port_key == "Other Port":
+  selected_port = st.sidebar.text_input(
+      t["port_custom"], value="Port of Limassol"
+  )
+else:
+  selected_port = selected_port_key
+
+dest_info = port_defaults[selected_port_key]
 dest_country = st.sidebar.text_input(t["dest"], value=dest_info["dest"])
 
 final_destination = st.sidebar.text_input(
     t["final_dest"],
     value=dest_info["site"],
-    key=f"final_site_{selected_port}",
+    key=f"final_site_{selected_port_key}",
 )
+
+# Route Validation Warning
+if (
+    "Israel" in dest_country
+    and "Haifa" not in selected_port
+    and "Ashdod" not in selected_port
+):
+  st.sidebar.warning(
+      "⚠️ **Route Alert:** Selected port is outside Israel while Destination"
+      " Country is set to Israel (Transit Shipment assumed)."
+  )
 
 st.sidebar.divider()
 st.sidebar.header(t["currency_header"])
@@ -307,7 +404,6 @@ equipment_type = st.sidebar.selectbox(
 is_bess = "BESS" in equipment_type
 is_mvs = "MVS" in equipment_type
 
-# Separate Container / Safety Options for BESS vs MVS
 if is_bess:
   container_options = {
       "20ft SOC BESS (DG Class 9 / Hazmat)": 520.0,
@@ -352,7 +448,26 @@ eu_mfn_customs_rates = {
 hs_code = st.sidebar.text_input(
     t["hs"], value=hs_defaults.get(equipment_type, "8507.60")
 )
-units_count = st.sidebar.number_input(t["units"], min_value=1, value=5, step=1)
+num_containers = st.sidebar.number_input(
+    t["num_containers"], min_value=1, value=5, step=1
+)
+
+# Capacity for BESS system if BESS selected
+if is_bess:
+  bess_mwh_capacity = st.sidebar.number_input(
+      t["bess_capacity"], min_value=0.1, value=10.0, step=0.5
+  )
+  total_cargo_units = int(bess_mwh_capacity * 1000)  # Total kWh
+else:
+  bess_mwh_capacity = 0.0
+  default_units_per_container = 1 if is_mvs else (600 if "Solar" in equipment_type else 20)
+  total_cargo_units = st.sidebar.number_input(
+      t["cargo_units"],
+      min_value=1,
+      value=int(num_containers * default_units_per_container),
+      step=10,
+  )
+
 container_weight = st.sidebar.number_input(
     t["weight"],
     min_value=1.0,
@@ -360,7 +475,7 @@ container_weight = st.sidebar.number_input(
     value=30.0 if is_mvs else 45.0,
     step=1.0,
 )
-total_weight = container_weight * units_count
+total_weight = container_weight * num_containers
 cargo_value_usd = st.sidebar.number_input(
     t["cargo_val"], min_value=0.0, value=150000.0, step=1000.0
 )
@@ -370,12 +485,21 @@ st.sidebar.header(t["freight_header"])
 freight_cost_usd = st.sidebar.number_input(
     t["freight"], min_value=0.0, value=12000.0, step=500.0
 )
-insurance_rate = (
-    st.sidebar.number_input(t["insurance"], min_value=0.0, value=0.3, step=0.05)
-    / 100
-)
 origin_expenses_usd = st.sidebar.number_input(
     t["origin_exp"], min_value=0.0, value=1500.0, step=100.0
+)
+
+insurance_basis = st.sidebar.selectbox(
+    t["ins_basis"],
+    ["FOB Cargo Value Only", "CIF Base (FOB + Freight + 10% Uplift)"],
+    index=1,
+)
+
+insurance_rate = (
+    st.sidebar.number_input(
+        t["insurance_rate"], min_value=0.0, value=0.3, step=0.05
+    )
+    / 100
 )
 
 st.sidebar.divider()
@@ -393,13 +517,18 @@ default_customs = (
 customs_rate_input = st.sidebar.number_input(
     t["customs_rate"], min_value=0.0, value=default_customs, step=0.1
 )
-fta_active = st.sidebar.checkbox(
-    t["fta"], value=True if default_customs == 0 else False
-)
-if fta_active:
-  st.sidebar.caption(t["fta_note"])
 
-green_exemption = st.sidebar.checkbox(t["green"], value=False)
+duty_incentive = st.sidebar.selectbox(
+    t["duty_incentive"],
+    [
+        "No Incentive (Full Duty)",
+        "Preferential FTA Exemption (COO Available)",
+        "Green Incentive (50% Duty Reduction)",
+        "Full Regulatory Exemption (0% Duty)",
+    ],
+    index=1 if default_customs == 0 else 0,
+)
+
 vat_rate = (
     st.sidebar.number_input(
         t["vat"], min_value=0.0, value=float(dest_info["vat"]), step=0.5
@@ -420,40 +549,80 @@ thc_fees_usd = st.sidebar.number_input(
     step=25.0,
     key=f"thc_{container_type}",
 )
-total_thc_usd = thc_fees_usd * units_count
+total_thc_usd = thc_fees_usd * num_containers
 
 brokerage_fees_usd = st.sidebar.number_input(
     t["brokerage"], min_value=0.0, value=850.0, step=50.0
 )
 
-inland_per_unit_usd = st.sidebar.number_input(
+inland_per_container_usd = st.sidebar.number_input(
     t["inland_per_unit"], min_value=0.0, value=900.0, step=50.0
 )
-total_inland_transport_usd = inland_per_unit_usd * units_count
+total_inland_transport_usd = inland_per_container_usd * num_containers
 
 st.sidebar.divider()
 st.sidebar.header(t["demurrage_header"])
 free_days = st.sidebar.number_input(t["free_days"], min_value=0, value=14, step=1)
+est_port_days = st.sidebar.number_input(
+    t["est_port_days"], min_value=0, value=16, step=1
+)
 demurrage_daily_rate = st.sidebar.number_input(
     t["demurrage_rate"], min_value=0.0, value=120.0, step=10.0
 )
 
+# EPR & Battery Recycling Provision (For BESS Cargo)
+st.sidebar.divider()
+st.sidebar.header(t["recycling_header"])
+
+if is_bess:
+  recycling_rate_per_kwh = st.sidebar.number_input(
+      t["recycling_rate"], min_value=0.0, value=12.0, step=1.0
+  )
+  total_recycling_provision_usd = (
+      bess_mwh_capacity * 1000 * recycling_rate_per_kwh
+  )
+else:
+  recycling_rate_per_kwh = 0.0
+  total_recycling_provision_usd = 0.0
+
+st.sidebar.divider()
+st.sidebar.header(t["green_header"])
+sea_dist_km = st.sidebar.number_input(
+    t["sea_dist"], min_value=0, value=int(dest_info["sea_km"]), step=500
+)
+land_dist_km = st.sidebar.number_input(
+    t["land_dist"], min_value=0, value=int(dest_info["land_km"]), step=10
+)
+
 # ---------------------------------------------------------
-# Calculations
+# Calculations Engine
 # ---------------------------------------------------------
-insurance_cost_usd = cargo_value_usd * insurance_rate
+if insurance_basis == "FOB Cargo Value Only":
+  insurance_cost_usd = cargo_value_usd * insurance_rate
+else:
+  insurance_cost_usd = (
+      (cargo_value_usd + freight_cost_usd + origin_expenses_usd)
+      * 1.10
+      * insurance_rate
+  )
+
 cif_value_usd = (
     cargo_value_usd + freight_cost_usd + origin_expenses_usd + insurance_cost_usd
 )
 
-effective_customs_rate = (
-    0.0
-    if (fta_active or green_exemption or "Israel" in dest_country)
-    else (customs_rate_input / 100)
-)
-customs_duty_amount_usd = cif_value_usd * effective_customs_rate
+if (
+    "Full Regulatory Exemption" in duty_incentive
+    or "Preferential FTA" in duty_incentive
+    or "Israel" in dest_country
+):
+  effective_customs_rate = 0.0
+elif "Green Incentive (50%" in duty_incentive:
+  effective_customs_rate = (customs_rate_input / 100) * 0.5
+else:
+  effective_customs_rate = customs_rate_input / 100
 
-vat_base_usd = cif_value_usd + customs_duty_amount_usd
+customs_duty_amount_usd = cif_value_usd * effective_customs_rate
+vat_base_usd = cif_value_usd + customs_duty_amount_usd + port_fees_usd
 vat_amount_usd = vat_base_usd * vat_rate
 
 local_clearance_total_usd = (
@@ -462,21 +631,37 @@ local_clearance_total_usd = (
     + brokerage_fees_usd
     + total_inland_transport_usd
 )
+
+demurrage_excess_days = max(0, est_port_days - free_days)
+total_demurrage_usd = (
+    demurrage_excess_days * demurrage_daily_rate * num_containers
+)
+
 total_landed_cost_gross_usd = (
     cif_value_usd
     + customs_duty_amount_usd
     + vat_amount_usd
     + local_clearance_total_usd
+    + total_demurrage_usd
+    + total_recycling_provision_usd
 )
 total_landed_cost_net_usd = total_landed_cost_gross_usd - vat_amount_usd
-cost_per_unit_usd = total_landed_cost_net_usd / units_count
+
+cost_per_container_usd = total_landed_cost_net_usd / num_containers
+cost_per_cargo_unit_usd = (
+    total_landed_cost_net_usd / total_cargo_units if total_cargo_units > 0 else 0
+)
+
+# Sustainability & CO2e Engine
+sea_co2e_tons = (total_weight * sea_dist_km * 0.010) / 1000
+road_co2e_tons = (total_weight * land_dist_km * 0.062) / 1000
+total_co2e_tons = sea_co2e_tons + road_co2e_tons
 
 # Local currency conversions
 cif_value_loc = cif_value_usd * ex_rate
 customs_duty_loc = customs_duty_amount_usd * ex_rate
 vat_amount_loc = vat_amount_usd * ex_rate
 landed_net_loc = total_landed_cost_net_usd * ex_rate
-cost_per_unit_loc = cost_per_unit_usd * ex_rate
 
 # ---------------------------------------------------------
 # UI Display & Safety Alerts
@@ -485,29 +670,34 @@ site_display = final_destination if final_destination else "N/A"
 if is_heb:
   st.info(
       f"📍 **מסלול:** מ-**{origin_country}** דרך **{selected_port}** ➔"
-      f" **{dest_country}** | **ציוד:** `{equipment_type}` | **אתר מסירה:**"
-      f" `{site_display}`"
+      f" **{dest_country}** | **ציוד:** `{equipment_type}` | **כמות:**"
+      f" `{num_containers}` מכולות | **פליטת פחמן:** `{total_co2e_tons:.2f} Ton"
+      " CO₂e`"
   )
 else:
   st.info(
       f"📍 **Route:** From **{origin_country}** via **{selected_port}** ➔"
-      f" **{dest_country}** | **Cargo:** `{equipment_type}` | **Site:**"
-      f" `{site_display}`"
+      f" **{dest_country}** | **Cargo:** `{equipment_type}` | **Volume:**"
+      f" `{num_containers}` Containers | **Carbon Footprint:**"
+      f" `{total_co2e_tons:.2f} Ton CO₂e`"
   )
 
-# Dangerous Goods alert ONLY for BESS
 if is_bess:
   if is_heb:
     st.warning(
-        "🔥 **התראת חומרים מסוכנים (BESS - DG Class 9 / UN 3536):** סוללות"
-        " ליתיום-יוון מוגדרות כחומר מסוכן. דורש הצהרת מסוכנים (DGD), מדבקות"
-        " אזהרה, ואישור איחסון/סדרנות מסוכנים בנמל."
+        "🔥 **התראת חומרים מסוכנים ודרכון סוללה (BESS - DG Class 9 / EU"
+        " 2023/1542):**\n* **DG Handling:** סוללות ליתיום-יוון מוגדרות כחומר"
+        " מסוכן (UN 3536). דורש הצהרת מסוכנים (DGD) ואישור איחסון מסוכנים"
+        " בנמל.\n* **EU Battery Passport & EPR:** באיחוד האירופי מחויב רישום"
+        " דרכון סוללה דיגיטלי והפרשת תשלום מחזור סוף חיים (EPR Provision)."
     )
   else:
     st.warning(
-        "🔥 **Dangerous Goods Alert (BESS - DG Class 9 / UN 3536):** Lithium-ion"
-        " batteries require Dangerous Goods Declaration (DGD), hazard"
-        " placarding, and port DG handling permits."
+        "🔥 **Dangerous Goods & EU Battery Passport Alert (BESS - DG Class 9 /"
+        " EU 2023/1542):**\n* **DG Handling:** Lithium-ion batteries (UN 3536)"
+        " require DGD documentation and port permits.\n* **EU Battery"
+        " Passport & EPR:** EU regulations mandate a digital battery passport"
+        " and EoL recycling financial provision."
     )
 
 if container_weight >= 40.0:
@@ -576,34 +766,90 @@ st.divider()
 
 left_col, right_col = st.columns([1, 1])
 
+# ---------------------------------------------------------
+# Waterfall Chart Visualization
+# ---------------------------------------------------------
 with left_col:
   st.subheader(t["breakdown_title"])
-  cost_data = pd.DataFrame({
-      "Cost Element": [
-          "FOB Equipment" if not is_heb else "ערך ציוד (FOB)",
-          "Freight & Ins." if not is_heb else "הובלה וביטוח",
-          "Customs Duty" if not is_heb else "מכס",
-          "Port & THC" if not is_heb else "אגרות נמל ו-THC",
-          "Brokerage" if not is_heb else "עמילות מכס",
-          "Inland Haulage" if not is_heb else "הובלה יבשתית",
-      ],
-      "Amount ($ USD)": [
-          cargo_value_usd,
-          freight_cost_usd + origin_expenses_usd + insurance_cost_usd,
-          customs_duty_amount_usd,
-          port_fees_usd + total_thc_usd,
-          brokerage_fees_usd,
-          total_inland_transport_usd,
-      ],
-  })
-  fig = px.pie(
-      cost_data,
-      values="Amount ($ USD)",
-      names="Cost Element",
-      hole=0.4,
-      color_discrete_sequence=px.colors.qualitative.Pastel,
+
+  x_labels = (
+      [
+          "ציוד FOB",
+          "הובלה ימית",
+          "ביטוח",
+          "מכס",
+          "נמל ו-THC",
+          "עמילות",
+          "הובלה יבשתית",
+          "סיכון השהיות",
+          "הפרשת מחזור",
+          "Landed Cost נטו",
+      ]
+      if is_heb
+      else [
+          "FOB Equipment",
+          "Freight",
+          "Insurance",
+          "Customs Duty",
+          "Port & THC",
+          "Brokerage",
+          "Inland Haulage",
+          "Demurrage Risk",
+          "Recycling Provision",
+          "Net Landed Cost",
+      ]
   )
-  fig.update_traces(textposition="inside", textinfo="percent+label")
+
+  fig = go.Figure(
+      go.Waterfall(
+          name="Landed Cost",
+          orientation="v",
+          measure=[
+              "relative",
+              "relative",
+              "relative",
+              "relative",
+              "relative",
+              "relative",
+              "relative",
+              "relative",
+              "relative",
+              "total",
+          ],
+          x=x_labels,
+          textposition="outside",
+          text=[
+              f"${cargo_value_usd:,.0f}",
+              f"${freight_cost_usd+origin_expenses_usd:,.0f}",
+              f"${insurance_cost_usd:,.0f}",
+              f"${customs_duty_amount_usd:,.0f}",
+              f"${port_fees_usd+total_thc_usd:,.0f}",
+              f"${brokerage_fees_usd:,.0f}",
+              f"${total_inland_transport_usd:,.0f}",
+              f"${total_demurrage_usd:,.0f}",
+              f"${total_recycling_provision_usd:,.0f}",
+              f"${total_landed_cost_net_usd:,.0f}",
+          ],
+          y=[
+              cargo_value_usd,
+              freight_cost_usd + origin_expenses_usd,
+              insurance_cost_usd,
+              customs_duty_amount_usd,
+              port_fees_usd + total_thc_usd,
+              brokerage_fees_usd,
+              total_inland_transport_usd,
+              total_demurrage_usd,
+              total_recycling_provision_usd,
+              0,
+          ],
+          connector={"line": {"color": "rgb(63, 63, 63)"}},
+      )
+  )
+  fig.update_layout(
+      showlegend=False,
+      height=480,
+      margin=dict(l=20, r=20, t=30, b=20),
+  )
   st.plotly_chart(fig, use_container_width=True)
 
 with right_col:
@@ -620,9 +866,11 @@ with right_col:
           f"Local ({curr_symbol})": container_type,
       },
       {
-          "Detail": "Site / יעד",
-          "Value ($ USD)": site_display,
-          f"Local ({curr_symbol})": f"Ex-Rate: {ex_rate}",
+          "Detail": "Containers vs Units",
+          "Value ($ USD)": f"{num_containers} Containers",
+          f"Local ({curr_symbol})": (
+              f"{bess_mwh_capacity} MWh" if is_bess else f"{total_cargo_units} Units"
+          ),
       },
       {
           "Detail": "FOB Cargo Value",
@@ -659,37 +907,49 @@ with right_col:
           f"Local ({curr_symbol})": f"{curr_symbol}{vat_amount_loc:,.2f}",
       },
       {
-          "Detail": "Port Wharfage & Handling",
-          "Value ($ USD)": f"${port_fees_usd:,.2f}",
+          "Detail": f"Port Wharfage & THC ({num_containers} cont.)",
+          "Value ($ USD)": f"${port_fees_usd + total_thc_usd:,.2f}",
           f"Local ({curr_symbol})": (
-              f"{curr_symbol}{port_fees_usd*ex_rate:,.2f}"
+              f"{curr_symbol}{(port_fees_usd + total_thc_usd)*ex_rate:,.2f}"
           ),
       },
       {
-          "Detail": f"Total THC ({units_count} units)",
-          "Value ($ USD)": f"${total_thc_usd:,.2f}",
-          f"Local ({curr_symbol})": (
-              f"{curr_symbol}{total_thc_usd*ex_rate:,.2f}"
-          ),
-      },
-      {
-          "Detail": "Brokerage & Permits",
-          "Value ($ USD)": f"${brokerage_fees_usd:,.2f}",
-          f"Local ({curr_symbol})": (
-              f"{curr_symbol}{brokerage_fees_usd*ex_rate:,.2f}"
-          ),
-      },
-      {
-          "Detail": f"Inland Heavy Haulage ({units_count} units)",
+          "Detail": f"Inland Heavy Haulage ({num_containers} cont.)",
           "Value ($ USD)": f"${total_inland_transport_usd:,.2f}",
           f"Local ({curr_symbol})": (
               f"{curr_symbol}{total_inland_transport_usd*ex_rate:,.2f}"
           ),
       },
       {
-          "Detail": "Net Landed Cost per Unit",
-          "Value ($ USD)": f"${cost_per_unit_usd:,.2f}",
-          f"Local ({curr_symbol})": f"{curr_symbol}{cost_per_unit_loc:,.2f}",
+          "Detail": f"Est. Demurrage Risk ({demurrage_excess_days} days)",
+          "Value ($ USD)": f"${total_demurrage_usd:,.2f}",
+          f"Local ({curr_symbol})": (
+              f"{curr_symbol}{total_demurrage_usd*ex_rate:,.2f}"
+          ),
+      },
+      {
+          "Detail": (
+              f"EU Battery Recycling EPR Provision"
+              f" (${recycling_rate_per_kwh}/kWh)"
+          ),
+          "Value ($ USD)": f"${total_recycling_provision_usd:,.2f}",
+          f"Local ({curr_symbol})": (
+              f"{curr_symbol}{total_recycling_provision_usd*ex_rate:,.2f}"
+          ),
+      },
+      {
+          "Detail": "Cost per Container / מכולה",
+          "Value ($ USD)": f"${cost_per_container_usd:,.2f}",
+          f"Local ({curr_symbol})": (
+              f"{curr_symbol}{cost_per_container_usd*ex_rate:,.2f}"
+          ),
+      },
+      {
+          "Detail": "Total Carbon Footprint",
+          "Value ($ USD)": f"{total_co2e_tons:.2f} Ton CO₂e",
+          f"Local ({curr_symbol})": (
+              f"Sea: {sea_co2e_tons:.1f}t | Road: {road_co2e_tons:.1f}t"
+          ),
       },
   ])
   st.dataframe(summary_df, use_container_width=True, hide_index=True)
@@ -698,7 +958,7 @@ st.divider()
 
 
 # ---------------------------------------------------------
-# Dynamic Language Excel Report Generation
+# Dynamic Excel Report Generation
 # ---------------------------------------------------------
 def generate_excel_bytes():
   wb = openpyxl.Workbook()
@@ -707,9 +967,9 @@ def generate_excel_bytes():
   ws.views.sheetView[0].showGridLines = True
 
   title_str = (
-      "דוח מחשבון עלויות יבוא - Green Logistics"
+      "דוח מחשבון עלויות יבוא, פחמן ומחזור - Green Logistics"
       if is_heb
-      else "Green-Logistics Customs & Landed Cost Report"
+      else "Green-Logistics Customs, Carbon & EPR Recycling Report"
   )
   ws["A1"] = title_str
   ws["A1"].font = Font(name="Calibri", size=14, bold=True, color="16A085")
@@ -720,7 +980,7 @@ def generate_excel_bytes():
       f"סכום במטבע מקומי ({curr_symbol})"
       if is_heb
       else f"Amount ({curr_symbol} Local)",
-      "הערות רגולציה" if is_heb else "Notes",
+      "הערות / מדדי קיימות ו-EPR" if is_heb else "Notes, EPR & Sustainability",
   ]
   ws.append([])
   ws.append(headers)
@@ -730,19 +990,29 @@ def generate_excel_bytes():
           "מדינת מוצא" if is_heb else "Origin Country",
           origin_country,
           origin_country,
-          "Shipping Origin",
+          "Origin Location",
       ],
       [
           "סוג הציוד" if is_heb else "Equipment Category",
           equipment_type,
           equipment_type,
-          "Cargo Type",
+          "Equipment Type",
       ],
       [
           "סוג מכולה / סיווג" if is_heb else "Container Type",
           container_type,
           container_type,
           "Safety Category",
+      ],
+      [
+          "כמות מכולות vs נפח" if is_heb else "Containers vs Volume",
+          f"{num_containers} Containers",
+          (
+              f"{bess_mwh_capacity} MWh Capacity"
+              if is_bess
+              else f"{total_cargo_units} Equipment Units"
+          ),
+          "Cargo Volume",
       ],
       [
           "נמל פקידה" if is_heb else "Port of Discharge",
@@ -760,7 +1030,7 @@ def generate_excel_bytes():
           "יעד סופי באתר" if is_heb else "Final Site Location",
           site_display,
           site_display,
-          "Delivery Location",
+          "Delivery Site",
       ],
       [
           "קוד מכס" if is_heb else "HS Code",
@@ -781,6 +1051,12 @@ def generate_excel_bytes():
           "Freight Charges",
       ],
       [
+          "ביטוח ימי" if is_heb else "Marine Insurance",
+          insurance_cost_usd,
+          insurance_cost_usd * ex_rate,
+          f"Basis: {insurance_basis}",
+      ],
+      [
           "ערך CIF כולל" if is_heb else "Total CIF Value",
           cif_value_usd,
           cif_value_loc,
@@ -790,7 +1066,7 @@ def generate_excel_bytes():
           "מכס אפקטיבי" if is_heb else "Customs Duty",
           customs_duty_amount_usd,
           customs_duty_loc,
-          f"{effective_customs_rate*100:.1f}% Rate",
+          f"{duty_incentive} ({effective_customs_rate*100:.1f}%)",
       ],
       [
           'מע"מ מקומי' if is_heb else "Local VAT Amount",
@@ -802,7 +1078,7 @@ def generate_excel_bytes():
           "דמי טיפול במסוף (THC)" if is_heb else "Total THC Charges",
           total_thc_usd,
           total_thc_usd * ex_rate,
-          f"${thc_fees_usd}/unit x {units_count}",
+          f"${thc_fees_usd}/cont. x {num_containers}",
       ],
       [
           "אגרות נמל ועמילות" if is_heb else "Port Fees & Brokerage",
@@ -814,7 +1090,19 @@ def generate_excel_bytes():
           "הובלה יבשתית מיוחדת" if is_heb else "Inland Heavy Haulage",
           total_inland_transport_usd,
           total_inland_transport_usd * ex_rate,
-          f"Heavy Haulage ({units_count} units)",
+          f"Heavy Haulage ({num_containers} cont.)",
+      ],
+      [
+          "סיכון השהיה בנמל (Demurrage)" if is_heb else "Estimated Demurrage",
+          total_demurrage_usd,
+          total_demurrage_usd * ex_rate,
+          f"{demurrage_excess_days} Excess Days Risk",
+      ],
+      [
+          "הפרשת מחזור סוללות באירופה (EPR)" if is_heb else "EU EPR Battery Recycling Provision",
+          total_recycling_provision_usd,
+          total_recycling_provision_usd * ex_rate,
+          f"${recycling_rate_per_kwh}/kWh End-of-Life Provision",
       ],
       [
           'עלות Landed Cost נטו (ללא מע"מ)'
@@ -825,10 +1113,16 @@ def generate_excel_bytes():
           "Excluding VAT",
       ],
       [
-          "עלות ממוצעת ליחידה" if is_heb else "Net Cost per Unit",
-          cost_per_unit_usd,
-          cost_per_unit_loc,
-          f"Divided by {units_count} units",
+          "עלות ממוצעת למכולה" if is_heb else "Cost per Container",
+          cost_per_container_usd,
+          cost_per_container_usd * ex_rate,
+          f"Divided by {num_containers} containers",
+      ],
+      [
+          "פליטת פחמן כוללת (CO₂e)" if is_heb else "Total Carbon Footprint",
+          f"{total_co2e_tons:.2f} Ton CO₂e",
+          f"{total_co2e_tons:.2f} Ton CO₂e",
+          f"Sea: {sea_co2e_tons:.1f}t | Road: {road_co2e_tons:.1f}t",
       ],
   ]
 
