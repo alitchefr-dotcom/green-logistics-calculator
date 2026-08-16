@@ -6,7 +6,7 @@ import streamlit as st
 from openpyxl.styles import Font
 
 # ---------------------------------------------------------
-# הגדרות עמוד
+# Page Configuration
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="Green-Logistics Customs & Landed Cost Calculator",
@@ -14,183 +14,276 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("⚡ Green-Logistics Customs & Landed Cost Calculator")
-st.markdown(
-    "מחשבון עלויות יבוא, מכס, רגולציה ו-Landed Cost לתשתיות אנרגיה מתחדשת"
-    " (**BESS**, **MVS**, פאנלים סולאריים, ממירים ושנאים)."
-)
+# ---------------------------------------------------------
+# Language Selector & Translations
+# ---------------------------------------------------------
+lang = st.sidebar.radio("🌐 Language / שפה", ["עברית", "English"])
+
+is_heb = lang == "עברית"
+
+t = {
+    "title": (
+        "⚡ מחשבון עלויות יבוא, מכס ו-Landed Cost"
+        if is_heb
+        else "⚡ Green-Logistics Customs & Landed Cost Calculator"
+    ),
+    "subtitle": (
+        "מחשבון עלויות יבוא, מכס, רגולציה ו-Landed Cost לתשתיות אנרגיה"
+        " מתחדשת (**BESS**, **MVS**, פאנלים סולאריים, ממירים ושנאים)."
+        if is_heb
+        else (
+            "Import Duty, Tax, Regulatory & Landed Cost Calculator for"
+            " Renewable Energy Infrastructure (**BESS**, **MVS Skids**, Solar"
+            " Panels, Inverters & Transformers)."
+        )
+    ),
+    "route_header": (
+        "🌍 מסלול השינוע והנמלים" if is_heb else "🌍 Shipping Route & Ports"
+    ),
+    "origin": "מדינת מוצא" if is_heb else "Origin Country",
+    "port": "נמל פקידה / שחרור" if is_heb else "Port of Discharge",
+    "dest": "מדינת יעד סופית" if is_heb else "Final Destination Country",
+    "final_dest": (
+        "יעד מסירה סופי באתר (שם/קואורדינטות)"
+        if is_heb
+        else "Final Delivery Location (Site Name / GPS)"
+    ),
+    "cargo_header": (
+        "📋 פרטי המטען, משקל וקוד מכס"
+        if is_heb
+        else "📋 Cargo Specifications & Classification"
+    ),
+    "equipment": "סוג הציוד" if is_heb else "Equipment Category",
+    "hs": "קוד מכס (HS Code)" if is_heb else "HS Code",
+    "units": "כמות יחידות/מכולות" if is_heb else "Number of Units / Containers",
+    "weight": (
+        "משקל ברוטו ליחידה (טון)"
+        if is_heb
+        else "Gross Weight per Unit (Tonnes)"
+    ),
+    "cargo_val": (
+        "ערך הסחורה במקור ($)" if is_heb else "Cargo FOB / EXW Value ($)"
+    ),
+    "freight_header": (
+        "🚢 עלויות שרשרת האספקה הימית"
+        if is_heb
+        else "🚢 Freight & Supply Chain Costs"
+    ),
+    "freight": "הובלה ימית ראשת ($)" if is_heb else "Main Ocean Freight ($)",
+    "insurance": (
+        "שיעור ביטוח ימי (%)" if is_heb else "Marine Insurance Rate (%)"
+    ),
+    "origin_exp": (
+        "הוצאות במקור ($)" if is_heb else "Origin Local Expenses ($)"
+    ),
+    "tax_header": (
+        "🏛️ מכס, הסכמי סחר ומיסוי"
+        if is_heb
+        else "🏛️ Customs, Duties & Taxation"
+    ),
+    "customs_rate": (
+        "שיעור מכס רשמי (%)" if is_heb else "Official Customs Duty Rate (%)"
+    ),
+    "fta": (
+        "הסכם סחר חופשי פעיל (FTA)"
+        if is_heb
+        else "Free Trade Agreement (FTA Exemption)"
+    ),
+    "green": (
+        "פטור/הטבה ירוקה ייעודית"
+        if is_heb
+        else "Green Incentive / Special Exemption"
+    ),
+    "vat": (
+        'שיעור מע"מ מקומי במדינת השחרור (%)'
+        if is_heb
+        else "Local VAT Rate at Port of Clearance (%)"
+    ),
+    "port_header": (
+        "⚓ עלויות נמל, THC ועמילות בארץ היעד"
+        if is_heb
+        else "⚓ Destination Port, THC & Brokerage"
+    ),
+    "port_fees": "אגרות נמל וסדרנות ($)" if is_heb else "Port Wharfage & Handling ($)",
+    "thc": (
+        "דמי טיפול במסוף (THC) ליחידה ($)"
+        if is_heb
+        else "Terminal Handling Charge (THC) per Unit ($)"
+    ),
+    "brokerage": (
+        "עמילות מכס ואישורים ($)"
+        if is_heb
+        else "Customs Brokerage, Classification & Permits ($)"
+    ),
+    "inland": (
+        "הובלה יבשתית מיוחדת/חורגת ($)"
+        if is_heb
+        else "Special Heavy Inland Haulage ($)"
+    ),
+    "cif_metric": "ערך CIF כולל" if is_heb else "Total CIF Value",
+    "duty_metric": "תשלום מכס אפקטיבי" if is_heb else "Effective Duty",
+    "vat_metric": 'מע"מ לתשלום' if is_heb else "VAT Payable",
+    "landed_metric": (
+        'עלות Landed Cost נטו (ללא מע"מ)'
+        if is_heb
+        else "Net Landed Cost (excl. VAT)"
+    ),
+    "breakdown_title": (
+        "📊 התפלגות עלויות היבוא" if is_heb else "📊 Landed Cost Breakdown"
+    ),
+    "summary_title": (
+        "📑 טבלת סיכום שלבי החישוב" if is_heb else "📑 Step-by-Step Summary Table"
+    ),
+    "export_title": "📥 ייצוא נתונים" if is_heb else "📥 Export Data",
+    "btn_excel": (
+        "📊 הורד דוח Excel מחושב מפורט"
+        if is_heb
+        else "📊 Download Detailed Excel Landed Cost Report"
+    ),
+}
+
+st.title(t["title"])
+st.markdown(t["subtitle"])
 st.divider()
 
 # ---------------------------------------------------------
-# סרגל צד - הזנת נתונים
+# Sidebar Inputs
 # ---------------------------------------------------------
-st.sidebar.header("🌍 מסלול השינוע והנמלים")
+st.sidebar.header(t["route_header"])
 
 origin_country = st.sidebar.selectbox(
-    "מדינת מוצא (Origin Country)",
+    t["origin"],
     [
-        'China (סין)',
-        'Germany (גרמניה)',
-        'USA (ארה"ב)',
-        "India (הודו)",
-        "Japan (יפן)",
-        "South Korea (קוריאה)",
-        "Other (אחר)",
+        "China",
+        "Germany",
+        "USA",
+        "India",
+        "Japan",
+        "South Korea",
+        "Other / אחר",
     ],
     index=0,
 )
 
 port_defaults = {
-    "Port of Haifa / Bayport (נמל חיפה / המפרץ - ישראל)": {
-        "dest": "Israel (ישראל)",
-        "vat": 18.0,
-    },
-    "Port of Ashdod (נמל אשדוד - ישראל)": {
-        "dest": "Israel (ישראל)",
-        "vat": 18.0,
-    },
-    "Port of Burgas (נמל בורגס - בולגריה)": {
-        "dest": "Bulgaria (בולגריה / מעבר לרומניה)",
+    "Port of Haifa / Bayport (Israel)": {"dest": "Israel", "vat": 18.0},
+    "Port of Ashdod (Israel)": {"dest": "Israel", "vat": 18.0},
+    "Port of Burgas (Bulgaria)": {
+        "dest": "Bulgaria / Transit to Romania",
         "vat": 20.0,
     },
-    "Port of Piraeus / Thessaloniki (יוון)": {
-        "dest": "Greece (יוון)",
+    "Port of Piraeus / Thessaloniki (Greece)": {
+        "dest": "Greece",
         "vat": 24.0,
     },
-    "Port of Rauma / Vuosaari (פינלנד)": {
-        "dest": "Finland (פינלנד)",
-        "vat": 25.5,
-    },
-    "Port of Constanta (רומניה)": {"dest": "Romania (רומניה)", "vat": 19.0},
-    "Port of Rotterdam / Antwerp (אירופה - כללי)": {
+    "Port of Rauma / Vuosaari (Finland)": {"dest": "Finland", "vat": 25.5},
+    "Port of Constanta (Romania)": {"dest": "Romania", "vat": 19.0},
+    "Port of Rotterdam / Antwerp (EU Main Port)": {
         "dest": "EU Main Port",
         "vat": 21.0,
     },
-    "Other Port (נמל אחר)": {"dest": "Other", "vat": 18.0},
+    "Other Port": {"dest": "Other", "vat": 18.0},
 }
 
 selected_port = st.sidebar.selectbox(
-    "נמל פקידה / שחרור (Port of Discharge)",
-    list(port_defaults.keys()),
-    index=0,
+    t["port"], list(port_defaults.keys()), index=0
 )
 
 dest_info = port_defaults[selected_port]
-dest_country = st.sidebar.text_input(
-    "מדינת יעד סופית (Destination Country)", value=dest_info["dest"]
-)
+dest_country = st.sidebar.text_input(t["dest"], value=dest_info["dest"])
 
 final_destination = st.sidebar.text_input(
-    "יעד מסירה סופי באתר (שם אתר / קואורדינטות GPS)",
-    value="Carmiel Industrial Zone / Coordinates: 32.9199, 35.2901",
-    help="תוכל להזין שם אתר, יישוב או קואורדינטות GPS מפורטות",
+    t["final_dest"],
+    value="Carmiel Industrial Zone / GPS: 32.9199, 35.2901",
 )
 
 st.sidebar.divider()
-st.sidebar.header("📋 פרטי המטען, משקל וקוד מכס")
+st.sidebar.header(t["cargo_header"])
 
 equipment_type = st.sidebar.selectbox(
-    "סוג הציוד (Equipment Category)",
+    t["equipment"],
     [
-        "BESS Container (מערכות אגירה)",
-        "MVS - Medium Voltage Stations / Skids (תחנות מיתוג וטרנספורמציה)",
-        "MVS Accessories & Switchgear (אביזרי מתח בינוני, מיתוג וציוד היקפי)",
-        "Solar Panels (פאנלים סולאריים)",
-        "Inverters & Transformers (ממירים ושנאים)",
-        "Wind Turbine Components (טורבינות רוח)",
+        "BESS Container (Battery Energy Storage Systems)",
+        "MVS - Medium Voltage Stations / Skids",
+        "MVS Accessories & Switchgear",
+        "Solar Panels (PV Modules)",
+        "Inverters & Transformers",
+        "Wind Turbine Components",
     ],
 )
 
 hs_defaults = {
-    "BESS Container (מערכות אגירה)": "8507.60",
-    "MVS - Medium Voltage Stations / Skids (תחנות מיתוג וטרנספורמציה)": (
-        "8504.22"
-    ),
-    "MVS Accessories & Switchgear (אביזרי מתח בינוני, מיתוג וציוד היקפי)": (
-        "8537.20"
-    ),
-    "Solar Panels (פאנלים סולאריים)": "8541.43",
-    "Inverters & Transformers (ממירים ושנאים)": "8504.40",
-    "Wind Turbine Components (טורבינות רוח)": "8502.31",
+    "BESS Container (Battery Energy Storage Systems)": "8507.60",
+    "MVS - Medium Voltage Stations / Skids": "8504.22",
+    "MVS Accessories & Switchgear": "8537.20",
+    "Solar Panels (PV Modules)": "8541.43",
+    "Inverters & Transformers": "8504.40",
+    "Wind Turbine Components": "8502.31",
 }
 
 hs_code = st.sidebar.text_input(
-    "קוד מכס (HS Code)", value=hs_defaults.get(equipment_type, "8507.60")
+    t["hs"], value=hs_defaults.get(equipment_type, "8507.60")
 )
 
 units_count = st.sidebar.number_input(
-    "כמות יחידות/מכולות", min_value=1, value=5, step=1
+    t["units"], min_value=1, value=5, step=1
 )
 
 container_weight = st.sidebar.number_input(
-    "משקל ברוטו ליחידה/מכולה (טון/Tonnes)",
+    t["weight"],
     min_value=1.0,
     max_value=100.0,
     value=35.0 if "MVS" in equipment_type else 45.0,
     step=1.0,
-    help="משקלים נפוצים: BESS כ-43-55 טון, MVS Skids כ-25-40 טון",
 )
 
 total_weight = container_weight * units_count
 
 cargo_value = st.sidebar.number_input(
-    "ערך הסחורה במקור - Cargo Value ($)",
-    min_value=0.0,
-    value=150000.0,
-    step=1000.0,
+    t["cargo_val"], min_value=0.0, value=150000.0, step=1000.0
 )
 
 st.sidebar.divider()
-st.sidebar.header("🚢 עלויות שרשרת האספקה הימית")
+st.sidebar.header(t["freight_header"])
 
 freight_cost = st.sidebar.number_input(
-    "הובלה ימית ראשת ($)", min_value=0.0, value=12000.0, step=500.0
+    t["freight"], min_value=0.0, value=12000.0, step=500.0
 )
 insurance_rate = (
     st.sidebar.number_input(
-        "שיעור ביטוח ימי (% Marine Insurance)",
-        min_value=0.0,
-        value=0.3,
-        step=0.05,
+        t["insurance"], min_value=0.0, value=0.3, step=0.05
     )
     / 100
 )
 origin_expenses = st.sidebar.number_input(
-    "הוצאות במקור ($)", min_value=0.0, value=1500.0, step=100.0
+    t["origin_exp"], min_value=0.0, value=1500.0, step=100.0
 )
 
 st.sidebar.divider()
-st.sidebar.header("🏛️ מכס, הסכמי סחר ומיסוי")
+st.sidebar.header(t["tax_header"])
 
 default_customs = (
     0.0
     if (
         "Israel" in dest_country
-        or "ישראל" in dest_country
-        or "Port of Haifa" in selected_port
-        or "Port of Ashdod" in selected_port
+        or "Haifa" in selected_port
+        or "Ashdod" in selected_port
     )
     else 6.0
 )
 
 customs_rate_input = st.sidebar.number_input(
-    "שיעור מכס רשמי (% Customs Duty)",
-    min_value=0.0,
-    value=default_customs,
-    step=0.5,
+    t["customs_rate"], min_value=0.0, value=default_customs, step=0.5
 )
 
 fta_active = st.sidebar.checkbox(
-    "הסכם סחר חופשי פעיל (FTA Exemption)",
-    value=True if default_customs == 0 else False,
+    t["fta"], value=True if default_customs == 0 else False
 )
-green_exemption = st.sidebar.checkbox(
-    "פטור/הטבה ירוקה ייעודית (Green Incentive)", value=False
-)
+green_exemption = st.sidebar.checkbox(t["green"], value=False)
 
 vat_rate = (
     st.sidebar.number_input(
-        'שיעור מע"מ מקומי במדינת השחרור (% Local VAT)',
+        t["vat"],
         min_value=0.0,
         value=float(dest_info["vat"]),
         step=0.5,
@@ -199,43 +292,32 @@ vat_rate = (
 )
 
 st.sidebar.divider()
-st.sidebar.header("⚓ עלויות נמל, THC ועמילות בארץ היעד")
+st.sidebar.header(t["port_header"])
 
 port_fees = st.sidebar.number_input(
-    "אגרות נמל וסדרנות ($)", min_value=0.0, value=1200.0, step=50.0
+    t["port_fees"], min_value=0.0, value=1200.0, step=50.0
 )
 thc_fees = st.sidebar.number_input(
-    "דמי טיפול במסוף - THC ליחידה/מכולה ($)",
-    min_value=0.0,
-    value=350.0,
-    step=25.0,
+    t["thc"], min_value=0.0, value=350.0, step=25.0
 )
 total_thc = thc_fees * units_count
 
 brokerage_fees = st.sidebar.number_input(
-    "עמילות מכס, סיווג ואישורים ($)", min_value=0.0, value=850.0, step=50.0
+    t["brokerage"], min_value=0.0, value=850.0, step=50.0
 )
 inland_transport = st.sidebar.number_input(
-    "הובלה יבשתית מיוחדת/חורגת לאתר ($)",
-    min_value=0.0,
-    value=4500.0,
-    step=250.0,
+    t["inland"], min_value=0.0, value=4500.0, step=250.0
 )
 
 # ---------------------------------------------------------
-# מנוע החישובים
+# Calculations
 # ---------------------------------------------------------
 insurance_cost = cargo_value * insurance_rate
 cif_value = cargo_value + freight_cost + origin_expenses + insurance_cost
 
 effective_customs_rate = (
     0.0
-    if (
-        fta_active
-        or green_exemption
-        or "Israel" in dest_country
-        or "ישראל" in dest_country
-    )
+    if (fta_active or green_exemption or "Israel" in dest_country)
     else (customs_rate_input / 100)
 )
 customs_duty_amount = cif_value * effective_customs_rate
@@ -253,76 +335,99 @@ total_landed_cost_net = total_landed_cost_gross - vat_amount
 cost_per_unit = total_landed_cost_net / units_count
 
 # ---------------------------------------------------------
-# תצוגת תוצאות בדף + התראות רגולציה
+# UI Display & Alerts
 # ---------------------------------------------------------
-st.info(
-    f"📍 **מסלול שינוע:** מ-**{origin_country}** דרך **{selected_port}** ➔"
-    f" **{dest_country}** | **יעד סופי:** `{final_destination}` | **HS"
-    f" Code:** `{hs_code}`"
-)
+if is_heb:
+  st.info(
+      f"📍 **מסלול:** מ-**{origin_country}** דרך **{selected_port}** ➔"
+      f" **{dest_country}** | **אתר מסירה:** `{final_destination}` | **HS"
+      f" Code:** `{hs_code}`"
+  )
+else:
+  st.info(
+      f"📍 **Route:** From **{origin_country}** via **{selected_port}** ➔"
+      f" **{dest_country}** | **Site:** `{final_destination}` | **HS"
+      f" Code:** `{hs_code}`"
+  )
 
 if container_weight >= 40.0:
-  st.error(
-      f"🚨 **התראת משקל כבד / מטען חורג ({container_weight} טון למכולה | סה\"כ"
-      f' {total_weight} טון):**\n* **בישראל:** מכולות/יחידות מעל משקל מותר'
-      " מחייבות אישור מיוחד של **משרד התחבורה (אגף מטענים)**, תיאום נתיב"
-      " נסיעה, היתר הובלה כבדה, בדיקת עומסי סרנים בגשרים וליווי משטרתי/פרטי"
-      " מראש.\n* **באירופה (בולגריה/רומניה/יוון/פינלנד):** מחייב היתר הובלה"
-      " מיוחדת (Special Transport Permit) מול רשויות הדרכים המקומיות ובדיקת"
-      " עומס על גשרים ותשתיות."
-  )
+  if is_heb:
+    st.error(
+        f"🚨 **התראת משקל כבד ({container_weight} טון למכולה | סה\"כ"
+        f' {total_weight} טון):**\n* **בישראל:** מחייב אישור מיוחד מ**משרד'
+        " התחבורה (אגף מטענים)**, בדיקת עומס סרנים בגשרים וליווי.\n* **באירופה:**"
+        " מחייב היתר הובלה מיוחדת (Special Transport Permit) מול רשויות"
+        " הדרכים."
+    )
+  else:
+    st.error(
+        f"🚨 **Heavy Cargo Alert ({container_weight} Tonnes/Unit | Total:"
+        f" {total_weight} Tonnes):**\n* **In Israel:** Requires special permit"
+        " from the **Ministry of Transport**, axle load checks, and escort.\n*"
+        " **In Europe:** Requires Special Transport Permits from local road"
+        " authorities."
+    )
 
-if "Israel" in dest_country or "ישראל" in dest_country:
-  st.success(
-      "💡 **הערת מכס ישראל:** ציוד אגירה (BESS), תחנות MVS ופאנלים סולאריים"
-      " פטורים ממכס בישראל (0% מכס), בכפוף לתעריף המכס והסכמי הסחר. שיעור המע\"מ"
-      " הרשמי הינו **18%**."
-  )
+if "Israel" in dest_country:
+  if is_heb:
+    st.success(
+        "💡 **הערת מכס ישראל:** BESS, MVS וציוד סולארי פטורים ממכס בישראל (0%"
+        ' מכס). שיעור המע"מ הינו **18%**.'
+    )
+  else:
+    st.success(
+        "💡 **Israel Customs Note:** BESS, MVS, and Solar equipment are duty"
+        " exempt (0% Duty) in Israel. VAT is **18%**."
+    )
 
 clean_hs = hs_code.replace(".", "").strip()
 if (
     "Israel" in dest_country
-    or "ישראל" in dest_country
     or "Haifa" in selected_port
     or "Ashdod" in selected_port
 ):
   customs_url = f"https://www.gov.il/he/departments/dynamiccollectors/customs-tariff?tariffNumber={clean_hs}"
-  link_text = "🔗 לחץ כאן לבדיקת שיעורי מכס ופטורים בתעריף המכס הישראלי (רשות המסים)"
+  link_text = (
+      "🔗 חיפוש בתעריף המכס הישראלי"
+      if is_heb
+      else "🔗 Search Israel Customs Tariff Database"
+  )
 else:
   customs_url = f"https://trade.ec.europa.eu/access-to-markets/en/home?product_code={clean_hs}"
   link_text = (
-      "🔗 לחץ כאן לבדיקת שיעורי מכס, מע\"מ והסכמי סחר בפורטל Access2Markets עבור"
-      f" {dest_country}"
+      f"🔗 חיפוש בפורטל Access2Markets עבור {dest_country}"
+      if is_heb
+      else f"🔗 Access EU Access2Markets Tariff Portal for {dest_country}"
   )
 
 st.markdown(f"[{link_text}]({customs_url})")
 
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("ערך CIF כולל", f"${cif_value:,.2f}")
+col1.metric(t["cif_metric"], f"${cif_value:,.2f}")
 col2.metric(
-    "תשלום מכס אפקטיבי",
+    t["duty_metric"],
     f"${customs_duty_amount:,.2f}",
     f"{effective_customs_rate*100:.1f}%",
 )
-col3.metric(f'מע"מ לתשלום ({vat_rate*100:.1f}%)', f"${vat_amount:,.2f}")
-col4.metric('עלות Landed Cost נטו (ללא מע"מ)', f"${total_landed_cost_net:,.2f}")
+col3.metric(f"{t['vat_metric']} ({vat_rate*100:.1f}%)", f"${vat_amount:,.2f}")
+col4.metric(t["landed_metric"], f"${total_landed_cost_net:,.2f}")
 
 st.divider()
 
 left_col, right_col = st.columns([1, 1])
 
 with left_col:
-  st.subheader("📊 התפלגות עלויות היבוא (Landed Cost Breakdown)")
+  st.subheader(t["breakdown_title"])
   cost_data = pd.DataFrame({
-      "רכיב עלות": [
-          "ערך ציוד (FOB)",
-          "הובלה ימית וביטוח",
-          "מכס",
-          "אגרות נמל ו-THC",
-          "עמילות מכס ואישורים",
-          "הובלה יבשתית (Inland)",
+      "Cost Element": [
+          "FOB Equipment" if not is_heb else "ערך ציוד (FOB)",
+          "Freight & Ins." if not is_heb else "הובלה וביטוח",
+          "Customs Duty" if not is_heb else "מכס",
+          "Port & THC" if not is_heb else "אגרות נמל ו-THC",
+          "Brokerage" if not is_heb else "עמילות מכס",
+          "Inland Haulage" if not is_heb else "הובלה יבשתית",
       ],
-      "סכום ($)": [
+      "Amount ($)": [
           cargo_value,
           freight_cost + origin_expenses + insurance_cost,
           customs_duty_amount,
@@ -333,8 +438,8 @@ with left_col:
   })
   fig = px.pie(
       cost_data,
-      values="סכום ($)",
-      names="רכיב עלות",
+      values="Amount ($)",
+      names="Cost Element",
       hole=0.4,
       color_discrete_sequence=px.colors.qualitative.Pastel,
   )
@@ -342,55 +447,41 @@ with left_col:
   st.plotly_chart(fig, use_container_width=True)
 
 with right_col:
-  st.subheader("📑 טבלת סיכום שלבי החישוב והלוגיסטיקה")
+  st.subheader(t["summary_title"])
   summary_df = pd.DataFrame([
       {
-          "שלב / פרט": "מסלול שחרור",
-          "ערך / סכום": f"{origin_country} ➔ {selected_port}",
+          "Detail": "Route / מסלול",
+          "Value": f"{origin_country} ➔ {selected_port}",
       },
-      {"שלב / פרט": "סוג הציוד", "ערך / סכום": equipment_type},
-      {"שלב / פרט": "יעד סופי באתר", "ערך / סכום": final_destination},
-      {"שלב / פרט": "קוד מכס (HS Code)", "ערך / סכום": hs_code},
+      {"Detail": "Equipment / ציוד", "Value": equipment_type},
+      {"Detail": "Site / יעד", "Value": final_destination},
+      {"Detail": "HS Code", "Value": hs_code},
       {
-          "שלב / פרט": "משקל כולל למטען",
-          "ערך / סכום": (
-              f"{total_weight:.1f} טון ({container_weight} טון/יחידה)"
-          ),
+          "Detail": "Total Weight / משקל",
+          "Value": f"{total_weight:.1f} Tonnes ({container_weight} T/unit)",
       },
-      {"שלב / פרט": "ערך הסחורה (FOB/EXW)", "ערך / סכום": f"${cargo_value:,.2f}"},
+      {"Detail": "FOB Value / ערך ציוד", "Value": f"${cargo_value:,.2f}"},
       {
-          "שלב / פרט": "הובלה ימית + הוצאות במקור",
-          "ערך / סכום": f"${freight_cost + origin_expenses:,.2f}",
+          "Detail": "Ocean Freight / הובלה ימית",
+          "Value": f"${freight_cost + origin_expenses:,.2f}",
       },
-      {"שלב / פרט": "ביטוח ימי", "ערך / סכום": f"${insurance_cost:,.2f}"},
+      {"Detail": "Insurance / ביטוח", "Value": f"${insurance_cost:,.2f}"},
+      {"Detail": "CIF Value / ערך CIF", "Value": f"${cif_value:,.2f}"},
+      {"Detail": "Customs Duty / מכס", "Value": f"${customs_duty_amount:,.2f}"},
       {
-          "שלב / פרט": "ערך CIF כולל (בסיס למכס)",
-          "ערך / סכום": f"${cif_value:,.2f}",
+          "Detail": f"Local VAT ({vat_rate*100:.1f}%)",
+          "Value": f"${vat_amount:,.2f}",
       },
+      {"Detail": "Port Wharfage / אגרות נמל", "Value": f"${port_fees:,.2f}"},
       {
-          "שלב / פרט": "מכס אפקטיבי לתשלום",
-          "ערך / סכום": f"${customs_duty_amount:,.2f}",
+          "Detail": f"Total THC ({units_count} units)",
+          "Value": f"${total_thc:,.2f}",
       },
+      {"Detail": "Brokerage / עמילות", "Value": f"${brokerage_fees:,.2f}"},
+      {"Detail": "Inland Haulage / הובלה יבשתית", "Value": f"${inland_transport:,.2f}"},
       {
-          "שלב / פרט": f'מע"מ מקומי לתשלום ({vat_rate*100:.1f}%)',
-          "ערך / סכום": f"${vat_amount:,.2f}",
-      },
-      {"שלב / פרט": "אגרות נמל וסדרנות", "ערך / סכום": f"${port_fees:,.2f}"},
-      {
-          "שלב / פרט": f"דמי THC כולל ({units_count} מכולות)",
-          "ערך / סכום": f"${total_thc:,.2f}",
-      },
-      {
-          "שלב / פרט": "עמילות מכס, סיווג ואישורים",
-          "ערך / סכום": f"${brokerage_fees:,.2f}",
-      },
-      {
-          "שלב / פרט": "הובלה יבשתית מיוחדת/חורגת",
-          "ערך / סכום": f"${inland_transport:,.2f}",
-      },
-      {
-          "שלב / פרט": "עלות כוללת ליחידה/מכולה (נטו)",
-          "ערך / סכום": f"${cost_per_unit:,.2f}",
+          "Detail": "Net Cost per Unit / עלות ליחידה",
+          "Value": f"${cost_per_unit:,.2f}",
       },
   ])
   st.dataframe(summary_df, use_container_width=True, hide_index=True)
@@ -398,6 +489,9 @@ with right_col:
 st.divider()
 
 
+# ---------------------------------------------------------
+# Excel Report Generation
+# ---------------------------------------------------------
 def generate_excel_bytes():
   wb = openpyxl.Workbook()
   ws = wb.active
@@ -407,53 +501,49 @@ def generate_excel_bytes():
   ws["A1"] = "Green-Logistics Customs & Landed Cost Report"
   ws["A1"].font = Font(name="Calibri", size=14, bold=True, color="16A085")
 
-  headers = ["שלב / רכיב עלות", "ערך / סכום ($)", "הערות רגולציה ולוגיסטיקה"]
+  headers = ["Cost Element / Detail", "Value / Amount ($)", "Notes"]
   ws.append([])
   ws.append(headers)
 
   data = [
-      ["מדינת מוצא", origin_country, "Origin"],
-      ["סוג הציוד", equipment_type, "Equipment Category"],
-      ["נמל פקידה / שחרור", selected_port, "Port of Discharge"],
-      ["מדינת יעד סופית", dest_country, "Destination Country"],
-      ["יעד סופי באתר (שם/GPS)", final_destination, "Final Delivery Location"],
-      ["קוד מכס (HS Code)", hs_code, "Customs Tariff Classification"],
+      ["Origin Country", origin_country, "Origin"],
+      ["Equipment Category", equipment_type, "Equipment Category"],
+      ["Port of Discharge", selected_port, "Discharge Port"],
+      ["Final Destination Country", dest_country, "Destination Country"],
+      ["Final Site Location", final_destination, "Delivery Location"],
+      ["HS Code", hs_code, "Tariff Classification"],
       [
-          "משקל ברוטו ליחידה",
+          "Unit Weight",
           f"{container_weight} Tonnes",
-          f'סה"כ {total_weight} טון ל-{units_count} יחידות',
+          f"Total {total_weight} Tonnes for {units_count} units",
       ],
-      ["ערך הסחורה במקור (FOB/EXW)", cargo_value, "חשבונית ספק"],
+      ["FOB Value", cargo_value, "Commercial Invoice"],
       [
-          "הובלה ימית + הוצאות במקור",
+          "Freight + Origin Fees",
           freight_cost + origin_expenses,
-          "הובלה ימית וטיפול במקור",
+          "Main Freight & Origin",
       ],
-      ["ביטוח ימי", insurance_cost, f"שיעור {insurance_rate*100:.2f}%"],
-      ["ערך CIF כולל (בסיס למכס)", cif_value, "בסיס למכס בנמל"],
-      ["מכס אפקטיבי לתשלום", customs_duty_amount, "פטור מכס בישראל / הסכם סחר"],
+      ["Marine Insurance", insurance_cost, f"Rate: {insurance_rate*100:.2f}%"],
+      ["Total CIF Value", cif_value, "Duty Valuation Base"],
       [
-          'מע"מ מקומי לתשלום',
-          vat_amount,
-          f'{vat_rate*100:.1f}% מע"מ במדינת השחרור',
+          "Customs Duty",
+          customs_duty_amount,
+          "Duty Free (Israel) / FTA Exemption",
       ],
-      ["אגרות נמל וסדרנות", port_fees, "Port Wharfage & Handling"],
-      ["דמי טיפול במסוף - THC", total_thc, f"${thc_fees} למכולה x {units_count}"],
-      ["עמילות מכס ואישורים", brokerage_fees, "Customs Brokerage & Permits"],
+      ["Local VAT", vat_amount, f"{vat_rate*100:.1f}% VAT at Port of Entry"],
+      ["Port Wharfage & Handling", port_fees, "Port Terminal Fees"],
+      ["Total THC", total_thc, f"${thc_fees}/unit x {units_count} units"],
+      ["Brokerage & Permits", brokerage_fees, "Customs Brokerage & Clearance"],
+      ["Inland Heavy Haulage", inland_transport, "Special Heavy Transport"],
       [
-          "הובלה יבשתית מיוחדת/חורגת",
-          inland_transport,
-          "Heavy Haulage Transport",
-      ],
-      [
-          'עלות Landed Cost נטו (ללא מע"מ)',
+          "Total Net Landed Cost (excl. VAT)",
           total_landed_cost_net,
-          "עלות יבוא מחושבת נטו",
+          "Total Net Import Cost",
       ],
       [
-          "עלות ממוצעת ליחידה/מכולה",
+          "Cost per Unit / Container",
           cost_per_unit,
-          f"חלוקה ל-{units_count} יחידות",
+          f"Divided across {units_count} units",
       ],
   ]
 
@@ -465,10 +555,10 @@ def generate_excel_bytes():
   return output.getvalue()
 
 
-st.subheader("📥 ייצוא נתונים")
+st.subheader(t["export_title"])
 
 st.download_button(
-    label="📊 הורד דוח Excel מחושב מפורט",
+    label=t["btn_excel"],
     data=generate_excel_bytes(),
     file_name=f"Green_Logistics_Landed_Cost_{clean_hs}.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
