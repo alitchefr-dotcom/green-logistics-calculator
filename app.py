@@ -58,11 +58,16 @@ t = {
         else "Exchange Rate (USD to Local Currency)"
     ),
     "cargo_header": (
-        "📋 פרטי המטען, משקל וקוד מכס"
+        "📋 פרטי המטען, מכולות וקוד מכס"
         if is_heb
-        else "📋 Cargo Specifications & Classification"
+        else "📋 Cargo, Container Specifications & Classification"
     ),
     "equipment": "סוג הציוד" if is_heb else "Equipment Category",
+    "container_type": (
+        "סוג מכולה / רמת סיכון"
+        if is_heb
+        else "Container Type & Hazard Category"
+    ),
     "hs": "קוד מכס (HS Code)" if is_heb else "HS Code",
     "units": "כמות יחידות/מכולות" if is_heb else "Number of Units / Containers",
     "weight": (
@@ -267,7 +272,6 @@ selected_port = st.sidebar.selectbox(
 dest_info = port_defaults[selected_port]
 dest_country = st.sidebar.text_input(t["dest"], value=dest_info["dest"])
 
-# Key enforces explicit reset when selecting different port regions
 final_destination = st.sidebar.text_input(
     t["final_dest"],
     value=dest_info["site"],
@@ -299,6 +303,22 @@ equipment_type = st.sidebar.selectbox(
         "Wind Turbine Components",
     ],
 )
+
+# Container Type / Hazard Category with default THC mapping
+container_thc_defaults = {
+    "20ft SOC Container (BESS / MVS Skids)": 350.0,
+    "40ft / 40HC Standard Dry Container": 280.0,
+    "40ft / 40HC Dangerous Goods (DG / Hazmat Class 9)": 520.0,
+    "Special Equipment (Open Top / Flat Rack)": 480.0,
+}
+
+container_type = st.sidebar.selectbox(
+    t["container_type"],
+    list(container_thc_defaults.keys()),
+    index=0 if "BESS" in equipment_type or "MVS" in equipment_type else 1,
+)
+
+default_thc_value = container_thc_defaults[container_type]
 
 hs_defaults = {
     "BESS Container (Battery Energy Storage Systems)": "8507.60",
@@ -381,15 +401,21 @@ st.sidebar.header(t["port_header"])
 port_fees_usd = st.sidebar.number_input(
     t["port_fees"], min_value=0.0, value=1200.0, step=50.0
 )
+
+# Dynamic THC input auto-populated based on container type selection
 thc_fees_usd = st.sidebar.number_input(
-    t["thc"], min_value=0.0, value=350.0, step=25.0
+    t["thc"],
+    min_value=0.0,
+    value=float(default_thc_value),
+    step=25.0,
+    key=f"thc_{container_type}",
 )
 total_thc_usd = thc_fees_usd * units_count
+
 brokerage_fees_usd = st.sidebar.number_input(
     t["brokerage"], min_value=0.0, value=850.0, step=50.0
 )
 
-# Heavy inland transport calculated per container/vehicle
 inland_per_unit_usd = st.sidebar.number_input(
     t["inland_per_unit"], min_value=0.0, value=900.0, step=50.0
 )
@@ -449,14 +475,14 @@ site_display = final_destination if final_destination else "N/A"
 if is_heb:
   st.info(
       f"📍 **מסלול:** מ-**{origin_country}** דרך **{selected_port}** ➔"
-      f" **{dest_country}** | **אתר מסירה:** `{site_display}` | **מטבע"
-      f" יעד:** `{dest_info['curr']}` (שער: `{ex_rate}`)"
+      f" **{dest_country}** | **סוג מכולה:** `{container_type}` | **אתר"
+      f" מסירה:** `{site_display}`"
   )
 else:
   st.info(
       f"📍 **Route:** From **{origin_country}** via **{selected_port}** ➔"
-      f" **{dest_country}** | **Site:** `{site_display}` | **Target"
-      f" Currency:** `{dest_info['curr']}` (Rate: `{ex_rate}`)"
+      f" **{dest_country}** | **Container:** `{container_type}` | **Site:**"
+      f" `{site_display}`"
   )
 
 if container_weight >= 40.0:
@@ -566,7 +592,7 @@ with right_col:
       {
           "Detail": "Equipment / ציוד",
           "Value ($ USD)": equipment_type,
-          f"Local ({curr_symbol})": hs_code,
+          f"Local ({curr_symbol})": container_type,
       },
       {
           "Detail": "Site / יעד",
@@ -688,6 +714,12 @@ def generate_excel_bytes():
           "Cargo Type",
       ],
       [
+          "סוג מכולה / סיווג" if is_heb else "Container Type",
+          container_type,
+          container_type,
+          "Container Category",
+      ],
+      [
           "נמל פקידה" if is_heb else "Port of Discharge",
           selected_port,
           selected_port,
@@ -704,12 +736,6 @@ def generate_excel_bytes():
           site_display,
           site_display,
           "Delivery Location",
-      ],
-      [
-          "מטבע ושער חליפין" if is_heb else "Target Currency / Ex-Rate",
-          dest_info["curr"],
-          f"1 USD = {ex_rate} {curr_symbol}",
-          "Conversion Rate",
       ],
       [
           "קוד מכס" if is_heb else "HS Code",
@@ -748,9 +774,15 @@ def generate_excel_bytes():
           f"{vat_rate*100:.1f}% Local VAT",
       ],
       [
-          "אגרות נמל, THC ועמילות" if is_heb else "Local Port Fees & Brokerage",
-          port_fees_usd + total_thc_usd + brokerage_fees_usd,
-          (port_fees_usd + total_thc_usd + brokerage_fees_usd) * ex_rate,
+          "דמי טיפול במסוף (THC)" if is_heb else "Total THC Charges",
+          total_thc_usd,
+          total_thc_usd * ex_rate,
+          f"${thc_fees_usd}/unit x {units_count}",
+      ],
+      [
+          "אגרות נמל ועמילות" if is_heb else "Port Fees & Brokerage",
+          port_fees_usd + brokerage_fees_usd,
+          (port_fees_usd + brokerage_fees_usd) * ex_rate,
           "Port Handling & Clearance",
       ],
       [
