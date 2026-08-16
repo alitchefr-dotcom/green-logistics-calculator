@@ -17,7 +17,7 @@ st.set_page_config(
 st.title("⚡ Green-Logistics Customs & Landed Cost Calculator")
 st.markdown(
     "מחשבון עלויות יבוא, מכס, רגולציה ו-Landed Cost לתשתיות אנרגיה מתחדשת"
-    " (**BESS**, פאנלים סולאריים, ממירים ושנאים)."
+    " (**BESS**, **MVS**, פאנלים סולאריים, ממירים ושנאים)."
 )
 st.divider()
 
@@ -40,7 +40,6 @@ origin_country = st.sidebar.selectbox(
     index=0,
 )
 
-# מיפוי נמלי פקידה נפוצים ומע"מ אוטומטי
 port_defaults = {
     "Port of Haifa / Bayport (נמל חיפה / המפרץ - ישראל)": {
         "dest": "Israel (ישראל)",
@@ -81,7 +80,6 @@ dest_country = st.sidebar.text_input(
     "מדינת יעד סופית (Destination Country)", value=dest_info["dest"]
 )
 
-# הזנת יעד יבשתי סופי (שם אתר או קואורדינטות)
 final_destination = st.sidebar.text_input(
     "יעד מסירה סופי באתר (שם אתר / קואורדינטות GPS)",
     value="Carmiel Industrial Zone / Coordinates: 32.9199, 35.2901",
@@ -95,6 +93,8 @@ equipment_type = st.sidebar.selectbox(
     "סוג הציוד (Equipment Category)",
     [
         "BESS Container (מערכות אגירה)",
+        "MVS - Medium Voltage Stations / Skids (תחנות מיתוג וטרנספורמציה)",
+        "MVS Accessories & Switchgear (אביזרי מתח בינוני, מיתוג וציוד היקפי)",
         "Solar Panels (פאנלים סולאריים)",
         "Inverters & Transformers (ממירים ושנאים)",
         "Wind Turbine Components (טורבינות רוח)",
@@ -103,6 +103,12 @@ equipment_type = st.sidebar.selectbox(
 
 hs_defaults = {
     "BESS Container (מערכות אגירה)": "8507.60",
+    "MVS - Medium Voltage Stations / Skids (תחנות מיתוג וטרנספורמציה)": (
+        "8504.22"
+    ),
+    "MVS Accessories & Switchgear (אביזרי מתח בינוני, מיתוג וציוד היקפי)": (
+        "8537.20"
+    ),
     "Solar Panels (פאנלים סולאריים)": "8541.43",
     "Inverters & Transformers (ממירים ושנאים)": "8504.40",
     "Wind Turbine Components (טורבינות רוח)": "8502.31",
@@ -116,14 +122,13 @@ units_count = st.sidebar.number_input(
     "כמות יחידות/מכולות", min_value=1, value=5, step=1
 )
 
-# משקל מכולה / יחידה
 container_weight = st.sidebar.number_input(
     "משקל ברוטו ליחידה/מכולה (טון/Tonnes)",
     min_value=1.0,
     max_value=100.0,
-    value=45.0,
+    value=35.0 if "MVS" in equipment_type else 45.0,
     step=1.0,
-    help="למשל: BESS containers משקלים נפוצים של 43, 45, 48, או 55 טון",
+    help="משקלים נפוצים: BESS כ-43-55 טון, MVS Skids כ-25-40 טון",
 )
 
 total_weight = container_weight * units_count
@@ -157,7 +162,6 @@ origin_expenses = st.sidebar.number_input(
 st.sidebar.divider()
 st.sidebar.header("🏛️ מכס, הסכמי סחר ומיסוי")
 
-# בדיקת ברירת מחדל למכס בישראל (פטור)
 default_customs = (
     0.0
     if (
@@ -184,17 +188,12 @@ green_exemption = st.sidebar.checkbox(
     "פטור/הטבה ירוקה ייעודית (Green Incentive)", value=False
 )
 
-# מע"מ מחובר אוטומטית לנמל פקידה עם אפשרות עריכה
 vat_rate = (
     st.sidebar.number_input(
         'שיעור מע"מ מקומי במדינת השחרור (% Local VAT)',
         min_value=0.0,
         value=float(dest_info["vat"]),
         step=0.5,
-        help=(
-            'המע"מ מעודכן אוטומטית לפי נמל הפקידה שנבחר (למשל: ישראל 18%,'
-            " בולגריה 20%, יוון 24%)"
-        ),
     )
     / 100
 )
@@ -262,27 +261,24 @@ st.info(
     f" Code:** `{hs_code}`"
 )
 
-# התראת משקל חורג ורגולציית משרד התחבורה
 if container_weight >= 40.0:
   st.error(
       f"🚨 **התראת משקל כבד / מטען חורג ({container_weight} טון למכולה | סה\"כ"
       f' {total_weight} טון):**\n* **בישראל:** מכולות/יחידות מעל משקל מותר'
       " מחייבות אישור מיוחד של **משרד התחבורה (אגף מטענים)**, תיאום נתיב"
       " נסיעה, היתר הובלה כבדה, בדיקת עומסי סרנים בגשרים וליווי משטרתי/פרטי"
-      " מראש.\n* **באירופה (בולגריה/רומניה/יוון):** מחייב היתר הובלה מיוחדת"
-      " (Special Transport Permit / Overweight Authorization) מול רשויות"
-      " הדרכים המקומיות (למשל RIA בבולגריה או CNAIR ברומניה) ובדיקת מגבלות עומס"
-      " על גשרים ותשתיות."
+      " מראש.\n* **באירופה (בולגריה/רומניה/יוון/פינלנד):** מחייב היתר הובלה"
+      " מיוחדת (Special Transport Permit) מול רשויות הדרכים המקומיות ובדיקת"
+      " עומס על גשרים ותשתיות."
   )
 
 if "Israel" in dest_country or "ישראל" in dest_country:
   st.success(
-      "💡 **הערת מכס ישראל:** מוצרי אגירה (BESS) ופאנלים סולאריים תחת פרט מכס"
-      ' 8507.60 / 8541.43 פטורים ממכס בישראל (0% מכס), בכפוף להסכמי סחר/תעריף'
-      ' המכס הרשמי. שיעור המע"מ הרשמי בישראל הינו **18%**.'
+      "💡 **הערת מכס ישראל:** ציוד אגירה (BESS), תחנות MVS ופאנלים סולאריים"
+      " פטורים ממכס בישראל (0% מכס), בכפוף לתעריף המכס והסכמי הסחר. שיעור המע\"מ"
+      " הרשמי הינו **18%**."
   )
 
-# קישור דינמי למס/מכס לפי נמל ומדינת היעד
 clean_hs = hs_code.replace(".", "").strip()
 if (
     "Israel" in dest_country
@@ -352,6 +348,7 @@ with right_col:
           "שלב / פרט": "מסלול שחרור",
           "ערך / סכום": f"{origin_country} ➔ {selected_port}",
       },
+      {"שלב / פרט": "סוג הציוד", "ערך / סכום": equipment_type},
       {"שלב / פרט": "יעד סופי באתר", "ערך / סכום": final_destination},
       {"שלב / פרט": "קוד מכס (HS Code)", "ערך / סכום": hs_code},
       {
@@ -401,9 +398,6 @@ with right_col:
 st.divider()
 
 
-# ---------------------------------------------------------
-# פונקציה לייצוא Excel
-# ---------------------------------------------------------
 def generate_excel_bytes():
   wb = openpyxl.Workbook()
   ws = wb.active
@@ -419,6 +413,7 @@ def generate_excel_bytes():
 
   data = [
       ["מדינת מוצא", origin_country, "Origin"],
+      ["סוג הציוד", equipment_type, "Equipment Category"],
       ["נמל פקידה / שחרור", selected_port, "Port of Discharge"],
       ["מדינת יעד סופית", dest_country, "Destination Country"],
       ["יעד סופי באתר (שם/GPS)", final_destination, "Final Delivery Location"],
@@ -470,9 +465,6 @@ def generate_excel_bytes():
   return output.getvalue()
 
 
-# ---------------------------------------------------------
-# כפתור הורדה Excel בממשק
-# ---------------------------------------------------------
 st.subheader("📥 ייצוא נתונים")
 
 st.download_button(
