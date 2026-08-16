@@ -15,7 +15,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# Emission Constants & Config
+# Constants & Reference Data
 # ---------------------------------------------------------
 SEA_EMISSION_FACTOR_G_PER_TKM = 10.0  # g CO2e / tonne-km
 ROAD_EMISSION_FACTOR_G_PER_TKM = 62.0  # g CO2e / tonne-km
@@ -26,6 +26,24 @@ ROAD_EMISSION_FACTOR_G_PER_TKM = 62.0  # g CO2e / tonne-km
 lang = st.sidebar.radio("🌐 Language / שפה", ["עברית", "English"])
 is_heb = lang == "עברית"
 
+# Inject RTL style if Hebrew selected
+if is_heb:
+  st.markdown(
+      """
+      <style>
+      .stApp {
+          direction: rtl;
+          text-align: right;
+      }
+      .stMarkdown, .stText, .stCaption {
+          text-align: right;
+      }
+      </style>
+      """,
+      unsafe_allow_html=True,
+  )
+
+# Bilingual Dictionaries
 t = {
     "title": (
         "⚡ מחשבון עלויות יבוא, מכס ו-Green Landed Cost"
@@ -88,9 +106,9 @@ t = {
         else "Total BESS System Capacity (MWh)"
     ),
     "cargo_units": (
-        "סה\"כ יחידות ציוד (למשל פאנלים/ממירים)"
+        'סה"כ יחידות ציוד (פאנלים/ממירים)'
         if is_heb
-        else "Total Cargo Units (Panels / Inverters / Units)"
+        else "Total Cargo Units (Panels / Inverters)"
     ),
     "weight": (
         "משקל ברוטו למכולה (טון)"
@@ -206,7 +224,7 @@ t = {
         "עלות Landed Cost בסיסית" if is_heb else "Base Landed Cost"
     ),
     "risk_adj_metric": (
-        "סה\"כ מותאם סיכון וסוף חיים" if is_heb else "Risk-Adjusted Total"
+        'סה"כ מותאם סיכון וסוף חיים' if is_heb else "Risk-Adjusted Total"
     ),
     "breakdown_title": (
         "📊 ניתוח הצטברות עלויות (Waterfall Chart)"
@@ -218,15 +236,11 @@ t = {
     ),
     "export_title": "📥 ייצוא נתונים" if is_heb else "📥 Export Data",
     "btn_excel": (
-        "📊 הורד דוח Excel מחושב מפורט"
+        "📊 צור והורד דוח Excel מפורט"
         if is_heb
-        else "📊 Download Detailed Excel Landed Cost Report"
+        else "📊 Generate Detailed Excel Report"
     ),
 }
-
-st.title(t["title"])
-st.markdown(t["subtitle"])
-st.divider()
 
 # ---------------------------------------------------------
 # Sidebar Inputs
@@ -406,7 +420,7 @@ final_destination = st.sidebar.text_input(
     key=f"final_site_{selected_port_key}",
 )
 
-# Route Mismatch Warning
+# Robust Route Mismatch Check
 port_base_country = dest_info["country"]
 if (
     port_base_country != "Custom"
@@ -660,107 +674,112 @@ land_dist_km = st.sidebar.number_input(
 )
 
 # ---------------------------------------------------------
-# Calculations Engine
+# Pure Core Math Function
 # ---------------------------------------------------------
-if insurance_basis == "FOB Cargo Value Only":
-  insurance_cost_usd = cargo_value_usd * insurance_rate
-else:
-  insurance_cost_usd = (
-      (cargo_value_usd + freight_cost_usd + origin_expenses_usd)
-      * 1.10
-      * insurance_rate
+def calculate_landed_cost():
+  if insurance_basis == "FOB Cargo Value Only":
+    insurance = cargo_value_usd * insurance_rate
+  else:
+    insurance = (
+        (cargo_value_usd + freight_cost_usd + origin_expenses_usd)
+        * 1.10
+        * insurance_rate
+    )
+
+  cif = cargo_value_usd + freight_cost_usd + origin_expenses_usd + insurance
+
+  if "Full Regulatory Exemption" in duty_incentive:
+    eff_duty_rate = 0.0
+  elif "Preferential FTA" in duty_incentive:
+    eff_duty_rate = verified_pref_rate / 100
+  elif "Green Incentive (50%" in duty_incentive:
+    eff_duty_rate = (customs_rate_input / 100) * 0.5
+  else:
+    eff_duty_rate = customs_rate_input / 100
+
+  duty = cif * eff_duty_rate
+  vat_base = cif + duty + port_fees_usd
+  vat = vat_base * vat_rate
+
+  local_clearance = (
+      port_fees_usd
+      + total_thc_usd
+      + brokerage_fees_usd
+      + total_inland_transport_usd
+  )
+  base_landed_net = cif + duty + local_clearance
+
+  demurrage_days = max(0, est_port_days - free_days)
+  demurrage = demurrage_days * demurrage_daily_rate * num_containers
+  risk_adjusted_total = (
+      base_landed_net + demurrage + total_recycling_provision_usd
   )
 
-cif_value_usd = (
-    cargo_value_usd + freight_cost_usd + origin_expenses_usd + insurance_cost_usd
-)
+  # CO2e Calculation
+  sea_co2 = (
+      total_weight * sea_dist_km * SEA_EMISSION_FACTOR_G_PER_TKM
+  ) / 1_000_000
+  road_co2 = (
+      total_weight * land_dist_km * ROAD_EMISSION_FACTOR_G_PER_TKM
+  ) / 1_000_000
+  total_co2 = sea_co2 + road_co2
 
-# Unbound Duty Rate Logic (Fixes Israel 0% hardcoding)
-if "Full Regulatory Exemption" in duty_incentive:
-  effective_customs_rate = 0.0
-elif "Preferential FTA" in duty_incentive:
-  effective_customs_rate = verified_pref_rate / 100
-elif "Green Incentive (50%" in duty_incentive:
-  effective_customs_rate = (customs_rate_input / 100) * 0.5
-else:
-  effective_customs_rate = customs_rate_input / 100
+  return {
+      "insurance": insurance,
+      "cif": cif,
+      "duty_rate": eff_duty_rate,
+      "duty": duty,
+      "vat": vat,
+      "local_clearance": local_clearance,
+      "base_landed_net": base_landed_net,
+      "demurrage_days": demurrage_days,
+      "demurrage": demurrage,
+      "risk_adjusted_total": risk_adjusted_total,
+      "sea_co2": sea_co2,
+      "road_co2": road_co2,
+      "total_co2": total_co2,
+  }
 
-customs_duty_amount_usd = cif_value_usd * effective_customs_rate
 
-# VAT Base Formula
-vat_base_usd = cif_value_usd + customs_duty_amount_usd + port_fees_usd
-vat_amount_usd = vat_base_usd * vat_rate
+res = calculate_landed_cost()
 
-local_clearance_total_usd = (
-    port_fees_usd
-    + total_thc_usd
-    + brokerage_fees_usd
-    + total_inland_transport_usd
-)
+# Local Currency Conversion
+cif_loc = res["cif"] * ex_rate
+duty_loc = res["duty"] * ex_rate
+vat_loc = res["vat"] * ex_rate
+base_landed_net_loc = res["base_landed_net"] * ex_rate
+risk_adjusted_loc = res["risk_adjusted_total"] * ex_rate
 
-# Base Landed Cost (Actual Invoice Charges)
-base_landed_cost_net_usd = (
-    cif_value_usd + customs_duty_amount_usd + local_clearance_total_usd
-)
-
-# Demurrage Risk
-demurrage_excess_days = max(0, est_port_days - free_days)
-total_demurrage_usd = (
-    demurrage_excess_days * demurrage_daily_rate * num_containers
-)
-
-# Risk-Adjusted Total
-risk_adjusted_total_usd = (
-    base_landed_cost_net_usd
-    + total_demurrage_usd
-    + total_recycling_provision_usd
-)
-
-# KPIs
+# KPI Calculation
 if is_bess and bess_mwh_capacity > 0:
   kpi_label = "Base Landed Cost / MWh"
-  kpi_value_usd = base_landed_cost_net_usd / bess_mwh_capacity
+  kpi_value_usd = res["base_landed_net"] / bess_mwh_capacity
 elif is_solar and total_cargo_units > 0:
   kpi_label = "Base Landed Cost / Panel"
-  kpi_value_usd = base_landed_cost_net_usd / total_cargo_units
+  kpi_value_usd = res["base_landed_net"] / total_cargo_units
 else:
   kpi_label = "Base Landed Cost / Container"
-  kpi_value_usd = base_landed_cost_net_usd / num_containers
+  kpi_value_usd = res["base_landed_net"] / num_containers
 
-# Transport CO2e Footprint Engine
-sea_co2e_tons = (
-    total_weight * sea_dist_km * SEA_EMISSION_FACTOR_G_PER_TKM
-) / 1_000_000
-road_co2e_tons = (
-    total_weight * land_dist_km * ROAD_EMISSION_FACTOR_G_PER_TKM
-) / 1_000_000
-total_co2e_tons = sea_co2e_tons + road_co2e_tons
-
-# Local Currency Conversions
-cif_value_loc = cif_value_usd * ex_rate
-customs_duty_loc = customs_duty_amount_usd * ex_rate
-vat_amount_loc = vat_amount_usd * ex_rate
-base_landed_net_loc = base_landed_cost_net_usd * ex_rate
-risk_adjusted_loc = risk_adjusted_total_usd * ex_rate
 kpi_value_loc = kpi_value_usd * ex_rate
 
 # ---------------------------------------------------------
-# UI Display Metrics & Risk Alerts
+# UI Display & Metric Cards
 # ---------------------------------------------------------
 site_display = final_destination if final_destination else "N/A"
 if is_heb:
   st.info(
       f"📍 **מסלול:** מ-**{origin_country}** דרך **{selected_port}** ➔"
       f" **{dest_country}** | **ציוד:** `{equipment_type}` | **כמות:**"
-      f" `{num_containers}` מכולות | **פליטת פחמן יבשתית/ימית משוערת:**"
-      f" `{total_co2e_tons:.2f} Ton CO₂e`"
+      f" `{num_containers}` מכולות | **פליטת פחמן משוערת:**"
+      f" `{res['total_co2']:.2f} Ton CO₂e`"
   )
 else:
   st.info(
       f"📍 **Route:** From **{origin_country}** via **{selected_port}** ➔"
       f" **{dest_country}** | **Cargo:** `{equipment_type}` | **Volume:**"
       f" `{num_containers}` Containers | **Est. Transport CO₂e:**"
-      f" `{total_co2e_tons:.2f} Ton CO₂e`"
+      f" `{res['total_co2']:.2f} Ton CO₂e`"
   )
 
 if is_bess:
@@ -817,29 +836,25 @@ else:
 st.markdown(f"[{link_text}]({customs_url})")
 
 col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric(
-    t["cif_metric"],
-    f"${cif_value_usd:,.2f}",
-    f"{curr_symbol}{cif_value_loc:,.2f}",
-)
+col1.metric(t["cif_metric"], f"${res['cif']:,.2f}", f"{curr_symbol}{cif_loc:,.2f}")
 col2.metric(
     t["duty_metric"],
-    f"${customs_duty_amount_usd:,.2f}",
-    f"{curr_symbol}{customs_duty_loc:,.2f} ({effective_customs_rate*100:.1f}%)",
+    f"${res['duty']:,.2f}",
+    f"{curr_symbol}{duty_loc:,.2f} ({res['duty_rate']*100:.1f}%)",
 )
 col3.metric(
     f"{t['vat_metric']} ({vat_rate*100:.1f}%)",
-    f"${vat_amount_usd:,.2f}",
-    f"{curr_symbol}{vat_amount_loc:,.2f}",
+    f"${res['vat']:,.2f}",
+    f"{curr_symbol}{vat_loc:,.2f}",
 )
 col4.metric(
     t["base_landed_metric"],
-    f"${base_landed_cost_net_usd:,.2f}",
+    f"${res['base_landed_net']:,.2f}",
     f"{curr_symbol}{base_landed_net_loc:,.2f}",
 )
 col5.metric(
     t["risk_adj_metric"],
-    f"${risk_adjusted_total_usd:,.2f}",
+    f"${res['risk_adjusted_total']:,.2f}",
     f"{curr_symbol}{risk_adjusted_loc:,.2f}",
 )
 
@@ -848,7 +863,7 @@ st.divider()
 left_col, right_col = st.columns([1, 1])
 
 # ---------------------------------------------------------
-# Waterfall Chart Visualization
+# Waterfall Chart
 # ---------------------------------------------------------
 with left_col:
   st.subheader(t["breakdown_title"])
@@ -865,7 +880,7 @@ with left_col:
           "Landed Cost בסיסי",
           "סיכון השהיות",
           "הפרשת מחזור",
-          "סה\"כ מותאם",
+          'סה"כ מותאם',
       ]
       if is_heb
       else [
@@ -905,26 +920,26 @@ with left_col:
           text=[
               f"${cargo_value_usd:,.0f}",
               f"${freight_cost_usd+origin_expenses_usd:,.0f}",
-              f"${insurance_cost_usd:,.0f}",
-              f"${customs_duty_amount_usd:,.0f}",
+              f"${res['insurance']:,.0f}",
+              f"${res['duty']:,.0f}",
               f"${port_fees_usd+total_thc_usd:,.0f}",
               f"${brokerage_fees_usd:,.0f}",
               f"${total_inland_transport_usd:,.0f}",
-              f"${base_landed_cost_net_usd:,.0f}",
-              f"${total_demurrage_usd:,.0f}",
+              f"${res['base_landed_net']:,.0f}",
+              f"${res['demurrage']:,.0f}",
               f"${total_recycling_provision_usd:,.0f}",
-              f"${risk_adjusted_total_usd:,.0f}",
+              f"${res['risk_adjusted_total']:,.0f}",
           ],
           y=[
               cargo_value_usd,
               freight_cost_usd + origin_expenses_usd,
-              insurance_cost_usd,
-              customs_duty_amount_usd,
+              res["insurance"],
+              res["duty"],
               port_fees_usd + total_thc_usd,
               brokerage_fees_usd,
               total_inland_transport_usd,
               0,
-              total_demurrage_usd,
+              res["demurrage"],
               total_recycling_provision_usd,
               0,
           ],
@@ -972,25 +987,25 @@ with right_col:
       },
       {
           "Detail": "Marine Insurance",
-          "Value ($ USD)": f"${insurance_cost_usd:,.2f}",
+          "Value ($ USD)": f"${res['insurance']:,.2f}",
           f"Local ({curr_symbol})": (
-              f"{curr_symbol}{insurance_cost_usd*ex_rate:,.2f}"
+              f"{curr_symbol}{res['insurance']*ex_rate:,.2f}"
           ),
       },
       {
           "Detail": "Total CIF Value",
-          "Value ($ USD)": f"${cif_value_usd:,.2f}",
-          f"Local ({curr_symbol})": f"{curr_symbol}{cif_value_loc:,.2f}",
+          "Value ($ USD)": f"${res['cif']:,.2f}",
+          f"Local ({curr_symbol})": f"{curr_symbol}{cif_loc:,.2f}",
       },
       {
           "Detail": "Customs Duty",
-          "Value ($ USD)": f"${customs_duty_amount_usd:,.2f}",
-          f"Local ({curr_symbol})": f"{curr_symbol}{customs_duty_loc:,.2f}",
+          "Value ($ USD)": f"${res['duty']:,.2f}",
+          f"Local ({curr_symbol})": f"{curr_symbol}{duty_loc:,.2f}",
       },
       {
           "Detail": f"Local VAT ({vat_rate*100:.1f}%)",
-          "Value ($ USD)": f"${vat_amount_usd:,.2f}",
-          f"Local ({curr_symbol})": f"{curr_symbol}{vat_amount_loc:,.2f}",
+          "Value ($ USD)": f"${res['vat']:,.2f}",
+          f"Local ({curr_symbol})": f"{curr_symbol}{vat_loc:,.2f}",
       },
       {
           "Detail": f"Port Fees & THC ({num_containers} cont.)",
@@ -1008,14 +1023,14 @@ with right_col:
       },
       {
           "Detail": "🟢 Base Landed Cost (Invoice Net)",
-          "Value ($ USD)": f"${base_landed_cost_net_usd:,.2f}",
+          "Value ($ USD)": f"${res['base_landed_net']:,.2f}",
           f"Local ({curr_symbol})": f"{curr_symbol}{base_landed_net_loc:,.2f}",
       },
       {
-          "Detail": f"🟡 Est. Demurrage Risk ({demurrage_excess_days} days)",
-          "Value ($ USD)": f"${total_demurrage_usd:,.2f}",
+          "Detail": f"🟡 Est. Demurrage Risk ({res['demurrage_days']} days)",
+          "Value ($ USD)": f"${res['demurrage']:,.2f}",
           f"Local ({curr_symbol})": (
-              f"{curr_symbol}{total_demurrage_usd*ex_rate:,.2f}"
+              f"{curr_symbol}{res['demurrage']*ex_rate:,.2f}"
           ),
       },
       {
@@ -1027,7 +1042,7 @@ with right_col:
       },
       {
           "Detail": "🔵 Risk-Adjusted Total",
-          "Value ($ USD)": f"${risk_adjusted_total_usd:,.2f}",
+          "Value ($ USD)": f"${res['risk_adjusted_total']:,.2f}",
           f"Local ({curr_symbol})": f"{curr_symbol}{risk_adjusted_loc:,.2f}",
       },
       {
@@ -1037,9 +1052,9 @@ with right_col:
       },
       {
           "Detail": "🌱 Est. Transport CO₂e Footprint",
-          "Value ($ USD)": f"{total_co2e_tons:.2f} Ton CO₂e",
+          "Value ($ USD)": f"{res['total_co2']:.2f} Ton CO₂e",
           f"Local ({curr_symbol})": (
-              f"Sea: {sea_co2e_tons:.1f}t | Road: {road_co2e_tons:.1f}t"
+              f"Sea: {res['sea_co2']:.1f}t | Road: {res['road_co2']:.1f}t"
           ),
       },
   ])
@@ -1049,21 +1064,30 @@ st.divider()
 
 
 # ---------------------------------------------------------
-# Dynamic Two-Tab Excel Report Generation
+# Polished Multi-Tab Excel Generator with Formatting
 # ---------------------------------------------------------
 def generate_excel_bytes():
   wb = openpyxl.Workbook()
 
-  # Tab 1: Financial & Landed Cost Breakdown
-  ws1 = wb.active
-  ws1.title = "Landed Cost Summary"
-  ws1.views.sheetView[0].showGridLines = True
-
+  # Formatting definitions
   title_font = Font(name="Calibri", size=14, bold=True, color="16A085")
   header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
   header_fill = PatternFill(
       start_color="16A085", end_color="16A085", fill_type="solid"
   )
+  thin_border_side = Side(border_style="thin", color="CCCCCC")
+  thin_border = Border(
+      left=thin_border_side,
+      right=thin_border_side,
+      top=thin_border_side,
+      bottom=thin_border_side,
+  )
+
+  # Sheet 1: Financial & Landed Cost Breakdown
+  ws1 = wb.active
+  ws1.title = "Landed Cost Summary"
+  ws1.views.sheetView[0].showGridLines = True
+  ws1.freeze_panes = "A4"
 
   ws1["A1"] = (
       "דוח מחשבון עלויות יבוא, פחמן ומחזור - Green Logistics"
@@ -1087,6 +1111,8 @@ def generate_excel_bytes():
     cell = ws1.cell(row=3, column=col_num)
     cell.font = header_font
     cell.fill = header_fill
+    cell.alignment = Alignment(horizontal="center", vertical="center")
+    cell.border = thin_border
 
   data1 = [
       [
@@ -1143,26 +1169,26 @@ def generate_excel_bytes():
       ],
       [
           "ביטוח ימי" if is_heb else "Marine Insurance",
-          insurance_cost_usd,
-          insurance_cost_usd * ex_rate,
+          res["insurance"],
+          res["insurance"] * ex_rate,
           f"Basis: {insurance_basis}",
       ],
       [
           "ערך CIF" if is_heb else "Total CIF Value",
-          cif_value_usd,
-          cif_value_loc,
+          res["cif"],
+          cif_loc,
           "Customs Base",
       ],
       [
           "מכס אפקטיבי" if is_heb else "Customs Duty",
-          customs_duty_amount_usd,
-          customs_duty_loc,
-          f"{duty_incentive} ({effective_customs_rate*100:.1f}%)",
+          res["duty"],
+          duty_loc,
+          f"{duty_incentive} ({res['duty_rate']*100:.1f}%)",
       ],
       [
           'מע"מ מקומי' if is_heb else "Local VAT Amount",
-          vat_amount_usd,
-          vat_amount_loc,
+          res["vat"],
+          vat_loc,
           f"{vat_rate*100:.1f}% Local VAT",
       ],
       [
@@ -1179,15 +1205,15 @@ def generate_excel_bytes():
       ],
       [
           "🟢 Base Landed Cost (Net)",
-          base_landed_cost_net_usd,
+          res["base_landed_net"],
           base_landed_net_loc,
           "Actual Invoice Total",
       ],
       [
           "🟡 Est. Demurrage Risk",
-          total_demurrage_usd,
-          total_demurrage_usd * ex_rate,
-          f"{demurrage_excess_days} Excess Days Risk",
+          res["demurrage"],
+          res["demurrage"] * ex_rate,
+          f"{res['demurrage_days']} Excess Days Risk",
       ],
       [
           "🟡 Battery Recycling EPR Provision",
@@ -1197,7 +1223,7 @@ def generate_excel_bytes():
       ],
       [
           "🔵 Risk-Adjusted Total",
-          risk_adjusted_total_usd,
+          res["risk_adjusted_total"],
           risk_adjusted_loc,
           "Total Budget Exposure",
       ],
@@ -1209,12 +1235,25 @@ def generate_excel_bytes():
       ],
   ]
 
-  for row in data1:
+  for row_idx, row in enumerate(data1, start=4):
     ws1.append(row)
+    # Apply numeric formatting to Amount columns (Col B & C)
+    for col_idx in [2, 3]:
+      cell = ws1.cell(row=row_idx, column=col_idx)
+      if isinstance(cell.value, (int, float)):
+        cell.number_format = "#,##0.00"
+      cell.border = thin_border
 
-  # Tab 2: Calculation Assumptions & Audit Trail
+  # Auto-fit Column Widths for Sheet 1
+  for col in ws1.columns:
+    max_len = max(len(str(cell.value or "")) for cell in col)
+    col_letter = openpyxl.utils.get_column_letter(col[0].column)
+    ws1.column_dimensions[col_letter].width = max(max_len + 4, 15)
+
+  # Sheet 2: Calculation Assumptions & Audit Trail
   ws2 = wb.create_sheet(title="Assumptions & Status")
   ws2.views.sheetView[0].showGridLines = True
+  ws2.freeze_panes = "A4"
 
   ws2["A1"] = (
       "הנחות יסוד וסטטוס אימות - Green Logistics"
@@ -1236,32 +1275,55 @@ def generate_excel_bytes():
     cell = ws2.cell(row=3, column=col_num)
     cell.font = header_font
     cell.fill = header_fill
+    cell.alignment = Alignment(horizontal="center", vertical="center")
+    cell.border = thin_border
 
   data2 = [
       ["HS Code Classification", hs_code, "🟡 Estimated / Suggested", "Suggested classification — requires broker check"],
       ["Official Duty Rate", f"{customs_rate_input}%", "🟡 Estimated", "Base MFN Tariff rate"],
       ["Duty Incentive Status", duty_incentive, "🔴 User Confirmed", "Requires valid Certificate of Origin (COO)"],
       ["Local VAT Rate", f"{vat_rate*100:.1f}%", "🟢 Verified", f"Port of clearance standard VAT rate for {dest_country}"],
-      ["Sea Distance Factor", f"{sea_dist_km} km", "🟡 Estimated", f"Estimated maritime route distance"],
+      ["Sea Distance Factor", f"{sea_dist_km} km", "🟡 Estimated", "Estimated maritime route distance"],
       ["Sea CO2e Factor", f"{SEA_EMISSION_FACTOR_G_PER_TKM} g/t-km", "🟢 Configured", "GLEC Framework maritime factor estimate"],
       ["Road CO2e Factor", f"{ROAD_EMISSION_FACTOR_G_PER_TKM} g/t-km", "🟢 Configured", "GLEC Framework road transport estimate"],
       ["Demurrage Free Days", f"{free_days} Days", "🟡 Configured", "Free days included in carrier quote"],
       ["EPR Recycling Mode", recycling_mode, "🟡 Provision", f"${recycling_rate_per_kwh}/kWh EoL provision rate"],
   ]
 
-  for row in data2:
+  for row_idx, row in enumerate(data2, start=4):
     ws2.append(row)
+    for col_idx in range(1, 5):
+      ws2.cell(row=row_idx, column=col_idx).border = thin_border
+
+  # Auto-fit Column Widths for Sheet 2
+  for col in ws2.columns:
+    max_len = max(len(str(cell.value or "")) for cell in col)
+    col_letter = openpyxl.utils.get_column_letter(col[0].column)
+    ws2.column_dimensions[col_letter].width = max(max_len + 4, 15)
 
   output = io.BytesIO()
   wb.save(output)
   return output.getvalue()
 
 
+# ---------------------------------------------------------
+# Lazy Excel Generation Pattern (Performance Optimization)
+# ---------------------------------------------------------
 st.subheader(t["export_title"])
-st.download_button(
-    label=t["btn_excel"],
-    data=generate_excel_bytes(),
-    file_name=f"Green_Logistics_Landed_Cost_{clean_hs}.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    use_container_width=True,
-)
+
+if "excel_bytes" not in st.session_state:
+  st.session_state.excel_bytes = None
+
+if st.button(t["btn_excel"]):
+  st.session_state.excel_bytes = generate_excel_bytes()
+
+if st.session_state.excel_bytes:
+  st.download_button(
+      label="📥 Click Here to Download Excel Report (.xlsx)",
+      data=st.session_state.excel_bytes,
+      file_name=f"Green_Logistics_Landed_Cost_{clean_hs}.xlsx",
+      mime=(
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      ),
+      use_container_width=True,
+  )
