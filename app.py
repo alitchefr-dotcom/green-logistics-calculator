@@ -304,7 +304,6 @@ equipment_type = st.sidebar.selectbox(
     ],
 )
 
-# Container Type / Hazard Category with default THC mapping
 container_thc_defaults = {
     "20ft SOC Container (BESS / MVS Skids)": 350.0,
     "40ft / 40HC Standard Dry Container": 280.0,
@@ -402,7 +401,6 @@ port_fees_usd = st.sidebar.number_input(
     t["port_fees"], min_value=0.0, value=1200.0, step=50.0
 )
 
-# Dynamic THC input auto-populated based on container type selection
 thc_fees_usd = st.sidebar.number_input(
     t["thc"],
     min_value=0.0,
@@ -423,7 +421,10 @@ total_inland_transport_usd = inland_per_unit_usd * units_count
 
 st.sidebar.divider()
 st.sidebar.header(t["demurrage_header"])
-free_days = st.sidebar.number_input(t["free_days"], min_value=1, value=14, step=1)
+
+# Allows 0 port free days
+free_days = st.sidebar.number_input(t["free_days"], min_value=0, value=14, step=1)
+
 demurrage_daily_rate = st.sidebar.number_input(
     t["demurrage_rate"], min_value=0.0, value=120.0, step=10.0
 )
