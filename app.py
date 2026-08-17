@@ -901,12 +901,10 @@ if (
     or "Haifa" in selected_port
     or "Ashdod" in selected_port
 ):
-    customs_url = "https://www.gov.il/he/service/customs-tariff"
-    link_text = (
-        f"🔗 מעבר לפורטל תעריף המכס והפטורים - רשות המסים (פרט: {clean_hs})"
-        if is_heb
-        else f"🔗 Open Official Israel Customs Tariff Portal (HS {clean_hs})"
-    )
+    if is_heb:
+        st.info(f"📋 **קוד מכס מוצע לבדיקה בתעריף הישראלי:** `{clean_hs}` (ניתן לבדוק ישירות בפורטל שער עולמי של רשות המסים)")
+    else:
+        st.info(f"📋 **Suggested Customs HS Code:** `{clean_hs}` (Verification required in Israel Shaar Olami Portal)")
 else:
     customs_url = f"https://trade.ec.europa.eu/access-to-markets/en/home?product_code={clean_hs}"
     link_text = (
@@ -914,8 +912,7 @@ else:
         if is_heb
         else f"🔗 Access EU Access2Markets Tariff Portal for {dest_country}"
     )
-
-st.markdown(f"[{link_text}]({customs_url})")
+    st.markdown(f"[{link_text}]({customs_url})")
 
 col1, col2, col3, col4, col5 = st.columns(5)
 col1.metric(t["cif_metric"], f"${res['cif']:,.2f}", f"{curr_symbol}{cif_loc:,.2f}")
