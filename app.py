@@ -468,9 +468,8 @@ is_solar = "Solar" in equipment_type
 
 if is_bess:
     container_options = {
-        "20HC SOC BESS (DG Class 9 / Hazmat)": 520.0,
+        "20ft SOC BESS (DG Class 9 / Hazmat)": 520.0,
         "40ft / 40HC SOC BESS (DG Class 9 / Hazmat)": 580.0,
-    }
     }
 elif is_mvs:
     container_options = {
@@ -901,8 +900,8 @@ if (
     "Israel" in dest_country
     or "Haifa" in selected_port
     or "Ashdod" in selected_port
-):
-    customs_url = f"https://www.gov.il/he/departments/dynamiccollectors/customs-tariff?tariffNumber={clean_hs}"
+
+  " customs_url = "https://www.gov.il/he/departments/dynamiccollectors/customs-tariff"
     link_text = (
         "🔗 חיפוש בתעריף המכס הישראלי"
         if is_heb
