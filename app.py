@@ -468,7 +468,7 @@ is_solar = "Solar" in equipment_type
 
 if is_bess:
     container_options = {
-        "20ft SOC BESS (DG Class 9 / Hazmat)": 520.0,
+        "20hc SOC BESS (DG Class 9 / Hazmat)": 520.0,
         "40ft / 40HC SOC BESS (DG Class 9 / Hazmat)": 580.0,
     }
 elif is_mvs:
