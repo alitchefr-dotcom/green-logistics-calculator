@@ -901,11 +901,11 @@ if (
     or "Haifa" in selected_port
     or "Ashdod" in selected_port
 ):
-    customs_url = "https://www.gov.il/he/departments/dynamiccollectors/customs-tariff"
+    customs_url = "https://shaarolami-query.customs.mof.gov.il/CustomspilotWeb/he/CustomsBook/Import/CustomsTaarifEntry"
     link_text = (
-        "🔗 חיפוש בתעריף המכס הישראלי"
+        "🔗 חיפוש בתעריף המכס הישראלי (שער עולמי)"
         if is_heb
-        else "🔗 Search Israel Customs Tariff Database"
+        else "🔗 Search Israel Customs Tariff Database (Shaar Olami)"
     )
 else:
     customs_url = f"https://trade.ec.europa.eu/access-to-markets/en/home?product_code={clean_hs}"
