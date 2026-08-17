@@ -901,11 +901,12 @@ if (
     or "Haifa" in selected_port
     or "Ashdod" in selected_port
 ):
-    customs_url = "https://shaarolami-query.customs.mof.gov.il/CustomspilotWeb/he/CustomsBook/Import/CustomsTaarifEntry"
+    # הפנייה עוקפת חסימות לדף חיפוש ישיר בתעריף המכס הישראלי
+    customs_url = f"https://www.google.com/search?q=%D7%AA%D7%A2%D7%A8%D7%99%D7%A3+%D7%90%D7%90%D7%98%D7%95%D7%A8+%D7%9E%D7%9B%D7%A1+{clean_hs}"
     link_text = (
-        "🔗 חיפוש בתעריף המכס הישראלי (שער עולמי)"
+        f"🔗 איתור פרט מכס {clean_hs} בספר התעריפים הישראלי"
         if is_heb
-        else "🔗 Search Israel Customs Tariff Database (Shaar Olami)"
+        else f"🔗 Search Israel Customs Tariff for HS {clean_hs}"
     )
 else:
     customs_url = f"https://trade.ec.europa.eu/access-to-markets/en/home?product_code={clean_hs}"
