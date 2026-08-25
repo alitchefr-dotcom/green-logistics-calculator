@@ -15,7 +15,7 @@ st.caption("מחשבון עלויות יעד, מכס, רגולציה ואחסנ�
 # טבלאות נתונים, חברות ספנות והיטלי דלק (BAF/NBF/MFR)
 # ---------------------------------------------------------
 VAT_RATES = {
-    "Israel": 17.0,
+    "Israel": 18.0,
     "Romania": 19.0,
     "Germany": 19.0,
     "Spain": 21.0,
@@ -25,7 +25,6 @@ VAT_RATES = {
     "Other / Custom": 0.0
 }
 
-# היטלי דלק וסביבה רשמיים לפי חברת ספנות לקווי המזרח הרחוק (למכולת 40FT / BESS)
 CARRIER_FUEL_SURCHARGES = {
     "ZIM (Integrated Shipping)": {"baf": 843.0, "code": "NBF / EFS"},
     "Hapag-Lloyd": {"baf": 780.0, "code": "MFR / EFS"},
@@ -77,7 +76,7 @@ with tab1:
         ])
         dest_country = st.selectbox("מדינת יעד:", list(VAT_RATES.keys()), index=0)
         
-        default_vat = VAT_RATES[dest_country]
+        default_vat = float(VAT_RATES[dest_country])
         applied_vat = st.number_input(f"שיעור מע\"מ מוגדר ({dest_country}) %:", value=default_vat, step=0.5)
 
     with col2:
@@ -91,21 +90,21 @@ with tab1:
         
         if cargo_type == "BESS Container (UN3536 Class 9)":
             weight_tier = st.selectbox("מדרגת משקל ליחידת BESS (MTS / Ton):", [
-                "Below 27 MTS ($6,300 Sell Rate)",
-                "27.0 - 34.9 MTS ($12,600 Sell Rate)",
-                "35.0 - 44.9 MTS ($18,375 Sell Rate)",
-                "45.0 - 48.0 MTS ($21,000 Sell Rate)"
+                "Below 27 MTS ($6,300)",
+                "27.0 - 34.9 MTS ($12,600)",
+                "35.0 - 44.9 MTS ($18,375)",
+                "45.0 - 48.0 MTS ($21,000)"
             ], index=3)
             
-            if "Below 27" in weight_tier: suggested_freight = 6300
-            elif "27.0" in weight_tier: suggested_freight = 12600
-            elif "35.0" in weight_tier: suggested_freight = 18375
-            else: suggested_freight = 21000
+            if "Below 27" in weight_tier: suggested_freight = 6300.0
+            elif "27.0" in weight_tier: suggested_freight = 12600.0
+            elif "35.0" in weight_tier: suggested_freight = 18375.0
+            else: suggested_freight = 21000.0
         else:
-            suggested_freight = 3360
+            suggested_freight = 3360.0
 
         is_dg = st.checkbox("מטען חומ\"ס (DG Class 9)", value=True if "BESS" in cargo_type else False)
-        exw_value_usd = st.number_input("ערך ציוד בבית המפעל בסין (EXW USD):", value=1500000, step=10000)
+        exw_value_usd = st.number_input("ערך ציוד בבית המפעל בסין (EXW USD):", value=500000.0, step=10000.0)
 
 # ----- T2: ספנות, BAF והיטלי נמל -----
 with tab2:
@@ -117,30 +116,29 @@ with tab2:
         
         base_freight_per_unit = st.number_input(
             "מחיר מכירה/בסיס להובלה ימית ליחידה ($):", 
-            value=suggested_freight if incoterm != "FOB" else 0, 
-            step=500,
-            disabled=(incoterm == "FOB"),
+            value=float(suggested_freight) if incoterm != "FOB (Free on Board)" else 0.0, 
+            step=500.0,
+            disabled=(incoterm == "FOB (Free on Board)"),
             help="ב-FOB הלקוח משלם את הים ישירות"
         )
         
-        # BAF אוטומטי לפי Carrier
-        carrier_baf_default = CARRIER_FUEL_SURCHARGES[selected_carrier]["baf"]
+        carrier_baf_default = float(CARRIER_FUEL_SURCHARGES[selected_carrier]["baf"])
         baf_surcharge = st.number_input(
             f"היטל דלק / סביבה ({CARRIER_FUEL_SURCHARGES[selected_carrier]['code']}) ליחידה ($):", 
-            value=carrier_baf_default if incoterm != "FOB" else 0.0, 
-            step=50,
-            disabled=(incoterm == "FOB")
+            value=carrier_baf_default if incoterm != "FOB (Free on Board)" else 0.0, 
+            step=50.0,
+            disabled=(incoterm == "FOB (Free on Board)")
         )
         
-        thc_port_fee = st.number_input("אגרת נמל יעד / דמי סבלות (THC/Wharfage) ליחידה ($):", value=380 if incoterm != "FOB" else 0, step=20)
+        thc_port_fee = st.number_input("אגרת נמל יעד / דמי סבלות (THC/Wharfage) ליחידה ($):", value=380.0 if incoterm != "FOB (Free on Board)" else 0.0, step=20.0)
         
     with col_b:
-        china_first_mile = st.number_input("הובלה יבשתית בסין + מכס יצוא ואישורי חומ\"ס (USD סה\"כ):", value=3500, step=500)
-        heavy_lift_survey = st.number_input("סקר הנדסי / היטל הובלה חריגה פרויקטלית ($ סה\"כ):", value=2500 if incoterm != "FOB" else 0, step=500)
-        customs_duty_pct = st.number_input("שיעור מכס / מיסי יבוא (%):", value=0.0 if incoterm == "FOB" else 0.0, step=0.5)
-        insurance_pct = st.number_input("פרמיית ביטוח ימי (% מערך ה-CIF):", value=0.35 if incoterm != "FOB" else 0.0, step=0.05)
+        china_first_mile = st.number_input("הובלה יבשתית בסין + מכס יצוא ואישורי חומ\"ס (USD סה\"כ):", value=3500.0, step=500.0)
+        heavy_lift_survey = st.number_input("סקר הנדסי / היטל הובלה חריגה פרויקטלית ($ סה\"כ):", value=2500.0 if incoterm != "FOB (Free on Board)" else 0.0, step=500.0)
+        customs_duty_pct = st.number_input("שיעור מכס / מיסי יבוא (%):", value=0.0, step=0.5)
+        insurance_pct = st.number_input("פרמיית ביטוח ימי (% מערך ה-CIF):", value=0.35 if incoterm != "FOB (Free on Board)" else 0.0, step=0.05)
 
-    total_freight_usd = (base_freight_per_unit + baf_surcharge + thc_port_fee) * container_count + heavy_lift_survey if incoterm != "FOB" else 0.0
+    total_freight_usd = (base_freight_per_unit + baf_surcharge + thc_port_fee) * float(container_count) + heavy_lift_survey if incoterm != "FOB (Free on Board)" else 0.0
 
 # ----- T3: אחסנה, השהיות ו-Last Mile -----
 with tab3:
@@ -150,37 +148,37 @@ with tab3:
     with col_x:
         free_days = st.number_input("ימי חסד בנמל (Free Days):", value=7, step=1)
         actual_port_days = st.number_input("ימי אחסנה בפועל בנמל:", value=12, step=1)
-        demurrage_daily_rate = st.number_input("קנס השהיה יומי ממוצע למכולת חומ\"ס ($):", value=250 if is_dg else 150, step=10)
+        demurrage_daily_rate = st.number_input("קנס השהיה יומי ממוצע למכולת חומ\"ס ($):", value=250.0 if is_dg else 150.0, step=10.0)
         
     with col_y:
         use_external_storage = st.checkbox("שימוש בחצר אחסנה חיצונית / שטח היערכות פרויקטלי", value=True)
-        ext_storage_daily_rate = st.number_input("עלות אחסנה יומית בחצר חיצונית למכולה ($):", value=65 if is_dg else 45, step=5)
-        ext_drayage_cost = st.number_input("שינוע יבשתי נמל-חצר-אתר (Drayage) למכולה ($):", value=850 if "21,000" in str(suggested_freight) else 600, step=50)
+        ext_storage_daily_rate = st.number_input("עלות אחסנה יומית בחצר חיצונית למכולה ($):", value=65.0 if is_dg else 45.0, step=5.0)
+        ext_drayage_cost = st.number_input("שינוע יבשתי נמל-חצר-אתר (Drayage) למכולה ($):", value=850.0 if suggested_freight == 21000.0 else 600.0, step=50.0)
 
     st.markdown("---")
     st.subheader("הרחבות DDP (פריקה מנוף וסיכוני אתר)")
     col_ddp1, col_ddp2 = st.columns(2)
     with col_ddp1:
-        site_crane_unloading = st.number_input("מנוף פריקה כבד באתר + הצבה על משטחי בטון ($ סה\"כ):", value=8500 if incoterm == "DDP (Delivered Duty Paid)" else 0, step=500, disabled=(incoterm != "DDP (Delivered Duty Paid)"))
+        site_crane_unloading = st.number_input("מנוף פריקה כבד באתר + הצבה על משטחי בטון ($ סה\"כ):", value=8500.0 if incoterm == "DDP (Delivered Duty Paid)" else 0.0, step=500.0, disabled=(incoterm != "DDP (Delivered Duty Paid)"))
     with col_ddp2:
         ddp_contingency_pct = st.number_input("מקדם סיכון ובלתי מתוכנן DDP (%):", value=5.0 if incoterm == "DDP (Delivered Duty Paid)" else 0.0, step=1.0, disabled=(incoterm != "DDP (Delivered Duty Paid)"))
 
     overdue_days = max(0, actual_port_days - free_days)
-    demurrage_total_usd = overdue_days * demurrage_daily_rate * container_count
+    demurrage_total_usd = float(overdue_days) * demurrage_daily_rate * float(container_count)
     
     if use_external_storage:
-        ext_storage_total_usd = (actual_port_days * ext_storage_daily_rate * container_count) + (ext_drayage_cost * container_count)
+        ext_storage_total_usd = (float(actual_port_days) * ext_storage_daily_rate * float(container_count)) + (ext_drayage_cost * float(container_count))
     else:
         ext_storage_total_usd = 0.0
 
 # ----- חישובים מסכמים -----
 cif_value_usd = exw_value_usd + china_first_mile + total_freight_usd
-insurance_total_usd = (cif_value_usd * (insurance_pct / 100))
-customs_duty_usd = ((cif_value_usd + total_freight_usd) * (customs_duty_pct / 100))
-vat_total_usd = ((cif_value_usd + total_freight_usd + customs_duty_usd) * (applied_vat / 100))
+insurance_total_usd = (cif_value_usd * (insurance_pct / 100.0))
+customs_duty_usd = ((cif_value_usd + total_freight_usd) * (customs_duty_pct / 100.0))
+vat_total_usd = ((cif_value_usd + total_freight_usd + customs_duty_usd) * (applied_vat / 100.0))
 
 subtotal_ddp = cif_value_usd + insurance_total_usd + customs_duty_usd + demurrage_total_usd + ext_storage_total_usd + site_crane_unloading
-contingency_usd = subtotal_ddp * (ddp_contingency_pct / 100)
+contingency_usd = subtotal_ddp * (ddp_contingency_pct / 100.0)
 total_landed_usd = subtotal_ddp + contingency_usd
 
 display_val, curr_symbol = convert_from_usd(total_landed_usd, display_currency)
@@ -219,7 +217,7 @@ with tab4:
         "עלות ב-USD ($)": [
             exw_value_usd, 
             china_first_mile, 
-            (base_freight_per_unit + baf_surcharge + thc_port_fee) * container_count if incoterm != "FOB" else 0.0, 
+            (base_freight_per_unit + baf_surcharge + thc_port_fee) * float(container_count) if incoterm != "FOB (Free on Board)" else 0.0, 
             heavy_lift_survey, 
             insurance_total_usd, 
             customs_duty_usd, 
@@ -231,7 +229,7 @@ with tab4:
         ]
     })
     
-    df_summary["אחוז מסך העלות"] = (df_summary["עלות ב-USD ($)"] / total_landed_usd) * 100
+    df_summary["אחוז מסך העלות"] = (df_summary["עלות ב-USD ($)"] / total_landed_usd) * 100.0
     df_summary["אחוז מסך העלות"] = df_summary["אחוז מסך העלות"].map("{:.2f}%".format)
     
     st.dataframe(df_summary, use_container_width=True)
