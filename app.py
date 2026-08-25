@@ -171,7 +171,7 @@ with tab2:
             "אגרות ותעריפי נמל יעד (Destination THC / Wharfage) ליחידה ($):", 
             value=380.0 if incoterm != "FOB (Free on Board)" else 0.0, 
             step=20.0,
-            help="תעריפי פריקה מנמל היעד (בורגס/קונסטנצה/חיפה) אל המסוף"
+            help="תעריפי פריקה מנמל היעד אל המסוף"
         )
         
     with col_b:
@@ -216,7 +216,7 @@ with tab3:
             "שינוע יבשתי מנמל היעד לאתר הפרויקט (Inland Drayage to Site) למכולה ($):", 
             value=default_cross_border_drayage, 
             step=50.0, 
-            help="הובלה יבשתית מנמל הפריקה (בורגס/קונסטנצה/חיפה) עד לאתר הפרויקט הסופי"
+            help="הובלה יבשתית מנמל הפריקה עד לאתר הפרויקט"
         )
 
     st.markdown("---")
@@ -293,7 +293,7 @@ with tab5:
             "הובלה פנימית בסין + עמילות יצוא", 
             "אגרות נמל מוצא בסין (Origin THC & Port Fees)", 
             f"הובלה ימית + {CARRIER_FUEL_SURCHARGES[selected_carrier]['code']} + THC יעד ({selected_carrier}) [{dest_port}]", 
-            "诉קר הנדסי / מטען כבד", 
+            "סקר הנדסי / מטען כבד", 
             "ביטוח ימי", 
             "מכס ומיסי יבוא", 
             "אגרות EPR, מיחזור ורגולציה סביבתית",
