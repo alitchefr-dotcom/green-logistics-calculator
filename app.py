@@ -38,6 +38,8 @@ T = {
     "dest_port": "Port of Discharge:" if not is_hebrew else "נמל יעד ימי (Port of Discharge):",
     "dest_country": "Final Project Country:" if not is_hebrew else "מדינת יעד סופית (אתר הפרויקט):",
     "site_address": "Project Site Location / Region:" if not is_hebrew else "כתובת / אזור אתר הפרויקט במדינה:",
+    "site_coords": "GPS Coordinates (Lat, Long):" if not is_hebrew else "קואורדינטות GPS (רוחב, אורך):",
+    "site_zip": "Postal / Zip Code:" if not is_hebrew else "מיקוד / קוד דואר:",
     "inland_drayage": "Inland Drayage to Site per Container ($):" if not is_hebrew else "שינוע יבשתי מנמל היעד לאתר הפרויקט ($ למכולה):",
     "inland_drayage_help": "Inland trucking from discharge port to project site" if not is_hebrew else "הובלה יבשתית מנמל הפריקה עד לאתר הפרויקט",
     "free_days_help": "In Israel standard free days are 4" if not is_hebrew else "בישראל מוגדרים 4 ימים חופשיים מול הנמלים",
@@ -137,7 +139,14 @@ with tab1:
                 "Custom Destination Port"
             ])
             site_address = st.text_input(T["site_address"], value="Iepurești / Ghimpați Site, Giurgiu County, Romania")
-            
+        
+        # שדות קואורדינטות ומיקוד
+        sub_col_a, sub_col_b = st.columns(2)
+        with sub_col_a:
+            site_coords = st.text_input(T["site_coords"], value="44.2581° N, 25.8824° E" if dest_country != "Israel" else "31.2518° N, 34.7913° E", help="e.g., 44.2581, 25.8824")
+        with sub_col_b:
+            site_zip = st.text_input(T["site_zip"], value="087135" if dest_country != "Israel" else "84100", help="Postal code for last-mile logistics routing")
+
         applied_vat = st.number_input(f"VAT Rate ({dest_country}) %:", value=float(VAT_RATES[dest_country]), step=0.5)
 
     with col2:
@@ -218,7 +227,7 @@ with tab4:
             st.markdown(f"**HS Code (Israel):** `{CUSTOMS_DUTIES['Israel'][cargo_type]['hs_code']}`")
             st.markdown(f"**Customs Duty:** `0.0%` (" + ("Exempt" if not is_hebrew else "פטור לפי צו תעריף המכס הישראלי") + ")")
             st.markdown(f"**Import VAT:** `{applied_vat}%`")
-            st.markdown(f"**Site Location:** `{site_address}`")
+            st.markdown(f"**Site Location:** `{site_address}` (GPS: `{site_coords}`, Zip: `{site_zip}`)")
             st.info("💡 **Regulatory Note (Israel):** Import of renewable energy & BESS equipment is exempt from customs duty and purchase tax, but subject to Poisons Permit and Environmental Protection/Fire Department approvals." if not is_hebrew else "💡 **הערה רגולטורית (ישראל):** יבוא מתקני אנרגיה מתחדשת ואגירה (BESS) פטור ממכס וממס קנייה, אך כפוף לאישור היתר רעלים ורישוי המשרד להגנת הסביבה/כבאות.")
 
         with col_il2:
@@ -233,7 +242,7 @@ with tab4:
         with col_eu1:
             st.markdown(f"**HS Code:** `{hs_code_eu}`")
             st.markdown(f"**EU Duty Rate:** `{CUSTOMS_DUTIES['EU'][cargo_type]['duty_pct']}%`")
-            st.markdown(f"**Project Site:** `{site_address}`")
+            st.markdown(f"**Project Site:** `{site_address}` (GPS: `{site_coords}`, Zip: `{site_zip}`)")
             st.link_button("🔗 Open Official EU TARIC Database" if not is_hebrew else "🔗 פתח בדיקת מכס רשמית ב-EU TARIC Database", taric_url)
             st.caption("Opens the official European Commission customs lookup page." if not is_hebrew else "הקישור יפתח את עמוד הבדיקה הרשמי של נציבות האיחוד האירופי עבור פרט המכס שנבחר.")
         with col_eu2:
@@ -247,7 +256,7 @@ with tab4:
 if show_route_optimization:
     with tab5:
         st.subheader(f"🗺️ Port Route Optimization ({dest_country} Projects)" if not is_hebrew else f"🗺️ ניתוח השוואתי: מסלולי נמלים עבור אתר הפרויקט: {site_address}")
-        st.caption(f"Route comparison derived for project site location: {site_address}" if not is_hebrew else f"השוואת מסלולי נמלים מותאמת למיקום האתר: {site_address}")
+        st.caption(f"Route comparison derived for project site location: {site_address} (GPS: {site_coords}, Zip: {site_zip})" if not is_hebrew else f"השוואת מסלולי נמלים מותאמת למיקום האתר: {site_address} (קואורדינטות: {site_coords}, מיקוד: {site_zip})")
         
         col_r1, col_r2 = st.columns(2)
         with col_r1:
