@@ -37,6 +37,18 @@ DEFAULT_INSURANCE_RATES = {
     "Other / Custom": 0.15
 }
 
+# ימים חופשיים בנמל ברירת מחדל לפי מדינה
+DEFAULT_FREE_DAYS = {
+    "Israel": 4,
+    "Romania": 7,
+    "Germany": 7,
+    "Spain": 7,
+    "Italy": 7,
+    "Greece": 7,
+    "Poland": 7,
+    "Other / Custom": 7
+}
+
 CARRIER_FUEL_SURCHARGES = {
     "ZIM (Integrated Shipping)": {"baf": 843.0, "code": "NBF / EFS"},
     "Hapag-Lloyd": {"baf": 780.0, "code": "MFR / EFS"},
@@ -149,7 +161,6 @@ with tab2:
         heavy_lift_survey = st.number_input("סקר הנדסי / היטל הובלה חריגה פרויקטלית ($ סה\"כ):", value=2500.0 if incoterm != "FOB (Free on Board)" else 0.0, step=500.0)
         customs_duty_pct = st.number_input("שיעור מכס / מיסי יבוא (%):", value=2.7 if dest_country == "Romania" else 0.0, step=0.1, help="באיחוד האירופי/רומניה חל מכס מופחת של 2.7% על BESS")
         
-        # פרמיית ביטוח אוטומטית לפי מדינת היעד
         default_ins_rate = DEFAULT_INSURANCE_RATES.get(dest_country, 0.15)
         insurance_pct = st.number_input(
             "פרמיית ביטוח ימי (% מערך ה-CIF):", 
@@ -166,7 +177,8 @@ with tab3:
     
     col_x, col_y = st.columns(2)
     with col_x:
-        free_days = st.number_input("ימי חסד בנמל (Free Days):", value=7, step=1)
+        default_fd = DEFAULT_FREE_DAYS.get(dest_country, 7)
+        free_days = st.number_input("ימים חופשיים בנמל (Free Days):", value=default_fd, step=1, help="בישראל מוגדרות 4 ימות חופשיות מול הנמלים")
         actual_port_days = st.number_input("ימי אחסנה בפועל בנמל:", value=12, step=1)
         demurrage_daily_rate = st.number_input("קנס השהיה יומי ממוצע למכולת חומ\"ס ($):", value=250.0 if is_dg else 150.0, step=10.0)
         
