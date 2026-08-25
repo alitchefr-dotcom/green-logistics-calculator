@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from geopy.geocoders import Nominatim
 
 # ---------------------------------------------------------
 # הגדרת תצורת עמוד ושפה
@@ -119,6 +120,21 @@ if show_route_optimization:
 else:
     tab1, tab2, tab3, tab4, tab6 = st.tabs([T["tab1"], T["tab2"], T["tab3"], T["tab4"], T["tab_summary"]])
 
+# פונקציית Geocoding אוטומטית לחיפוש קואורדינטות ומיקוד
+@st.cache_data(show_spinner=False)
+def get_location_details(address_query, country_name):
+    try:
+        geolocator = Nominatim(user_agent="renewable_logistics_calc")
+        query = f"{address_query}, {country_name}" if country_name != "Other / Custom" else address_query
+        location = geolocator.geocode(query, addressdetails=True, timeout=5)
+        if location:
+            coords = f"{location.latitude:.4f}° N, {location.longitude:.4f}° E"
+            zip_code = location.raw.get('address', {}).get('postcode', 'N/A')
+            return coords, zip_code
+    except Exception:
+        pass
+    return None, None
+
 # ----- T1: פרטי מטען ויעד -----
 with tab1:
     st.subheader("Equipment Specification & Destination" if not is_hebrew else "מפרט הציוד, נמלי מוצא/יעד ומדינת היעד")
@@ -129,7 +145,7 @@ with tab1:
         
         if dest_country == "Israel":
             dest_port = st.selectbox(T["dest_port"], ["Haifa / Ashdod, Israel", "Custom Destination Port"])
-            site_address = st.text_input(T["site_address"], value="Negev / Galilee Region" if not is_hebrew else "אזור הנגב / גליל")
+            default_site = "אשלים" if is_hebrew else "Ashalim"
         else:
             dest_port = st.selectbox(T["dest_port"], [
                 "Burgas, Bulgaria (Burgas Transit to Romania)", 
@@ -138,14 +154,24 @@ with tab1:
                 "Hamburg / Rotterdam, North Europe", 
                 "Custom Destination Port"
             ])
-            site_address = st.text_input(T["site_address"], value="Iepurești / Ghimpați Site, Giurgiu County, Romania")
+            default_site = "Iepurești"
+
+        site_address = st.text_input(T["site_address"], value=default_site)
         
-        # שדות קואורדינטות ומיקוד
+        # חיפוש אוטומטי של קואורדינטות ומיקוד בלייב
+        auto_coords, auto_zip = get_location_details(site_address, dest_country)
+        
+        fallback_coords = "30.9678° N, 34.6980° E" if "אשלים" in site_address or "Ashalim" in site_address else ("44.2581° N, 25.8824° E" if dest_country != "Israel" else "31.2518° N, 34.7913° E")
+        fallback_zip = "8551200" if "אשלים" in site_address or "Ashalim" in site_address else ("087135" if dest_country != "Israel" else "84100")
+
+        final_coords_val = auto_coords if auto_coords else fallback_coords
+        final_zip_val = auto_zip if (auto_zip and auto_zip != 'N/A') else fallback_zip
+
         sub_col_a, sub_col_b = st.columns(2)
         with sub_col_a:
-            site_coords = st.text_input(T["site_coords"], value="44.2581° N, 25.8824° E" if dest_country != "Israel" else "31.2518° N, 34.7913° E", help="e.g., 44.2581, 25.8824")
+            site_coords = st.text_input(T["site_coords"], value=final_coords_val, help="Auto-detected or custom GPS")
         with sub_col_b:
-            site_zip = st.text_input(T["site_zip"], value="087135" if dest_country != "Israel" else "84100", help="Postal code for last-mile logistics routing")
+            site_zip = st.text_input(T["site_zip"], value=final_zip_val, help="Auto-detected or custom Postal Code")
 
         applied_vat = st.number_input(f"VAT Rate ({dest_country}) %:", value=float(VAT_RATES[dest_country]), step=0.5)
 
