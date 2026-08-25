@@ -87,7 +87,7 @@ def convert_from_usd(amount_usd, target_curr):
 # ---------------------------------------------------------
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📋 פרטי מטען, נמלים ויעד", 
-    "⚓ ספנות, BAF והיטלי נמל", 
+    "⚓ ספנות, BAF ותעריפי נמלים", 
     "📦 אחסנה, השהיות ו-Last Mile", 
     "🇪🇺 מכס באירופה, EPR ורגולציה", 
     "📊 Landed Cost & Incoterms Summary"
@@ -143,9 +143,9 @@ with tab1:
         is_dg = st.checkbox("מטען חומ\"ס (DG Class 9)", value=True if "BESS" in cargo_type else False)
         exw_value_usd = st.number_input("ערך ציוד בבית המפעל בסין (EXW USD):", value=500000.0, step=10000.0)
 
-# ----- T2: ספנות, BAF והיטלי נמל -----
+# ----- T2: ספנות, BAF ותעריפי נמלים -----
 with tab2:
-    st.subheader("בחירת חברת ספנות, BAF והיטלים")
+    st.subheader("בחירת חברת ספנות, תעריפי נמלים (Origin/Dest THC) וביטוח")
     
     col_a, col_b = st.columns(2)
     with col_a:
@@ -167,10 +167,19 @@ with tab2:
             disabled=(incoterm == "FOB (Free on Board)")
         )
         
-        thc_port_fee = st.number_input("אגרת נמל יעד / דמי סבלות (THC/Wharfage) ליחידה ($):", value=380.0 if incoterm != "FOB (Free on Board)" else 0.0, step=20.0)
+        dest_thc_port_fee = st.number_input(
+            "אגרות ותעריפי נמל יעד (Destination THC / Wharfage) ליחידה ($):", 
+            value=380.0 if incoterm != "FOB (Free on Board)" else 0.0, 
+            step=20.0,
+            help="תעריפי פריקה מנמל היעד (בורגס/קונסטנצה/חיפה) אל המסוף"
+        )
         
     with col_b:
-        china_first_mile = st.number_input("הובלה יבשתית בסין + מכס יצוא ואישורי חומ\"ס (USD סה\"כ):", value=3500.0, step=500.0)
+        st.markdown("**עלויות מוצא בסין (China Origin Scope):**")
+        china_inland_drayage = st.number_input("הובלה פנימית בסין + עמילות יצוא ואישורי חומ\"ס (USD סה\"כ):", value=2200.0, step=300.0)
+        china_origin_thc = st.number_input("אגרות ותעריפי נמל מוצא בסין (Origin THC & Port Fees סה\"כ):", value=1300.0, step=200.0)
+        
+        st.markdown("**מיסים וביטוח:**")
         heavy_lift_survey = st.number_input("סקר הנדסי / היטל הובלה חריגה פרויקטלית ($ סה\"כ):", value=2500.0 if incoterm != "FOB (Free on Board)" else 0.0, step=500.0)
         
         default_duty = EU_CUSTOMS_DUTIES[cargo_type]["duty_pct"] if dest_country != "Israel" else 0.0
@@ -184,11 +193,12 @@ with tab2:
             help=f"עודכן אוטומטית לפי מדינת היעד שנבחרה ({dest_country})"
         )
 
-    total_freight_usd = (base_freight_per_unit + baf_surcharge + thc_port_fee) * float(container_count) + heavy_lift_survey if incoterm != "FOB (Free on Board)" else 0.0
+    china_first_mile_total = china_inland_drayage + china_origin_thc
+    total_freight_usd = (base_freight_per_unit + baf_surcharge + dest_thc_port_fee) * float(container_count) + heavy_lift_survey if incoterm != "FOB (Free on Board)" else 0.0
 
 # ----- T3: אחסנה, השהיות ו-Last Mile -----
 with tab3:
-    st.subheader("אחסנה חיצונית, השהיות והובלת DDP לאתר (Cross-Border / Last Mile)")
+    st.subheader("אחסנה חיצונית, השהיות והובלת DDP לאתר (Cross-Border / Last Mile Drayage)")
     
     col_x, col_y = st.columns(2)
     with col_x:
@@ -201,9 +211,13 @@ with tab3:
         use_external_storage = st.checkbox("שימוש בחצר אחסנה חיצונית / שטח היערכות פרויקטלי", value=True)
         ext_storage_daily_rate = st.number_input("עלות אחסנה יומית בחצר חיצונית למכולה ($):", value=65.0 if is_dg else 45.0, step=5.0)
         
-        # התאמת עלות הובלה יבשתית אם מדובר במעבר גבול (בורגס לרומניה)
         default_cross_border_drayage = 1850.0 if "Burgas" in dest_port else (850.0 if suggested_freight == 21000.0 else 600.0)
-        ext_drayage_cost = st.number_input("שינוע יבשתי חוצה-גבולות / נמל-חצר-אתר (Drayage) למכולה ($):", value=default_cross_border_drayage, step=50.0, help="עבור נמל בורגס לרומניה מחושבת הובלת כביש חוצת גבולות")
+        ext_drayage_cost = st.number_input(
+            "שינוע יבשתי מנמל היעד לאתר הפרויקט (Inland Drayage to Site) למכולה ($):", 
+            value=default_cross_border_drayage, 
+            step=50.0, 
+            help="הובלה יבשתית מנמל הפריקה (בורגס/קונסטנצה/חיפה) עד לאתר הפרויקט הסופי"
+        )
 
     st.markdown("---")
     st.subheader("הרחבות DDP (פריקה מנוף וסיכוני אתר)")
@@ -245,7 +259,7 @@ with tab4:
     epr_total_usd = (epr_fee_per_unit * float(container_count)) + local_regulatory_permits
 
 # ----- חישובים מסכמים -----
-cif_value_usd = exw_value_usd + china_first_mile + total_freight_usd
+cif_value_usd = exw_value_usd + china_first_mile_total + total_freight_usd
 insurance_total_usd = (cif_value_usd * (insurance_pct / 100.0))
 customs_duty_usd = ((cif_value_usd + total_freight_usd) * (customs_duty_pct / 100.0))
 vat_total_usd = ((cif_value_usd + total_freight_usd + customs_duty_usd) * (applied_vat / 100.0))
@@ -266,9 +280,9 @@ with tab5:
     
     m1, m2, m3, m4 = st.columns(4)
     m1.metric(f"עלות כוללת לפי {incoterm.split(' ')[0]}", f"{curr_symbol} {display_val:,.2f}")
-    m2.metric("הובלה ימית + BAF", f"{curr_symbol} {freight_display:,.2f}")
+    m2.metric("הובלה ימית + BAF + THC יעד", f"{curr_symbol} {freight_display:,.2f}")
     m3.metric("מכס ומיסים", f"{curr_symbol} {customs_display:,.2f}")
-    m4.metric("אחסנה, השהיות ו-Last Mile", f"{curr_symbol} {storage_display:,.2f}")
+    m4.metric("אחסנה, השהיות ו-Inland Drayage", f"{curr_symbol} {storage_display:,.2f}")
     
     st.markdown("---")
     
@@ -276,22 +290,24 @@ with tab5:
     df_summary = pd.DataFrame({
         "רכיב עלות": [
             "ערך ציוד (EXW)", 
-            "הובלה פנימית בסין + מכס יצוא", 
-            f"הובלה ימית + {CARRIER_FUEL_SURCHARGES[selected_carrier]['code']} ({selected_carrier}) [{dest_port}]", 
+            "הובלה פנימית בסין + עמילות יצוא", 
+            "אגרות נמל מוצא בסין (Origin THC & Port Fees)", 
+            f"הובלה ימית + {CARRIER_FUEL_SURCHARGES[selected_carrier]['code']} + THC יעד ({selected_carrier}) [{dest_port}]", 
             "סקר הנדסי / מטען כבד", 
             "ביטוח ימי", 
             "מכס ומיסי יבוא", 
             "אגרות EPR, מיחזור ורגולציה סביבתית",
             "קנסות השהיה בנמל (Demurrage)", 
-            "שינוע יבשתי חוצה-גבולות / Last Mile", 
+            "שינוע יבשתי מנמל היעד לאתר הפרויקט (Inland Drayage)", 
             "מנוף פריקה והצבה באתר (DDP Scope)", 
             "מקדם סיכון DDP Contingency", 
             "מע\"מ (ניתן לקיזוז)"
         ],
         "עלות ב-USD ($)": [
             exw_value_usd, 
-            china_first_mile, 
-            (base_freight_per_unit + baf_surcharge + thc_port_fee) * float(container_count) if incoterm != "FOB (Free on Board)" else 0.0, 
+            china_inland_drayage, 
+            china_origin_thc, 
+            (base_freight_per_unit + baf_surcharge + dest_thc_port_fee) * float(container_count) if incoterm != "FOB (Free on Board)" else 0.0, 
             heavy_lift_survey, 
             insurance_total_usd, 
             customs_duty_usd, 
