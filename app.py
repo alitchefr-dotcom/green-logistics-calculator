@@ -86,7 +86,7 @@ def convert_from_usd(amount_usd, target_curr):
 # לשוניות ראשיות
 # ---------------------------------------------------------
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📋 פרטי מטען ויעד", 
+    "📋 פרטי מטען, נמלים ויעד", 
     "⚓ ספנות, BAF והיטלי נמל", 
     "📦 אחסנה, השהיות ו-Last Mile", 
     "🇪🇺 מכס באירופה, EPR ורגולציה", 
@@ -95,7 +95,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 
 # ----- T1: פרטי מטען ויעד -----
 with tab1:
-    st.subheader("מפרט הציוד, נמלים ותנאי המכירה")
+    st.subheader("מפרט הציוד, נמלי מוצא/יעד ומדינת היעד")
     col1, col2 = st.columns(2)
     
     with col1:
@@ -106,7 +106,17 @@ with tab1:
             "Guangzhou / Nansha (דרום סין)", 
             "Custom Origin Port"
         ])
-        dest_country = st.selectbox("מדינת יעד:", list(VAT_RATES.keys()), index=0)
+        
+        dest_port = st.selectbox("נמל יעד ימי (Port of Discharge):", [
+            "Burgas, Bulgaria (בורגס - מעבר יבשתי לרומניה)", 
+            "Constanța, Romania (קונסטנצה)", 
+            "Haifa / Ashdod, Israel (חיפה / אשדוד)", 
+            "Piraeus / Thessaloniki, Greece", 
+            "Hamburg / Rotterdam, North Europe", 
+            "Custom Destination Port"
+        ])
+        
+        dest_country = st.selectbox("מדינת יעד סופית (אתר הפרויקט):", list(VAT_RATES.keys()), index=1 if "Burgas" in dest_port else 0)
         
         default_vat = float(VAT_RATES[dest_country])
         applied_vat = st.number_input(f"שיעור מע\"מ מוגדר ({dest_country}) %:", value=default_vat, step=0.5)
@@ -178,7 +188,7 @@ with tab2:
 
 # ----- T3: אחסנה, השהיות ו-Last Mile -----
 with tab3:
-    st.subheader("אחסנה חיצונית, השהיות והובלת DDP לאתר (Last Mile)")
+    st.subheader("אחסנה חיצונית, השהיות והובלת DDP לאתר (Cross-Border / Last Mile)")
     
     col_x, col_y = st.columns(2)
     with col_x:
@@ -190,7 +200,10 @@ with tab3:
     with col_y:
         use_external_storage = st.checkbox("שימוש בחצר אחסנה חיצונית / שטח היערכות פרויקטלי", value=True)
         ext_storage_daily_rate = st.number_input("עלות אחסנה יומית בחצר חיצונית למכולה ($):", value=65.0 if is_dg else 45.0, step=5.0)
-        ext_drayage_cost = st.number_input("שינוע יבשתי נמל-חצר-אתר (Drayage) למכולה ($):", value=850.0 if suggested_freight == 21000.0 else 600.0, step=50.0)
+        
+        # התאמת עלות הובלה יבשתית אם מדובר במעבר גבול (בורגס לרומניה)
+        default_cross_border_drayage = 1850.0 if "Burgas" in dest_port else (850.0 if suggested_freight == 21000.0 else 600.0)
+        ext_drayage_cost = st.number_input("שינוע יבשתי חוצה-גבולות / נמל-חצר-אתר (Drayage) למכולה ($):", value=default_cross_border_drayage, step=50.0, help="עבור נמל בורגס לרומניה מחושבת הובלת כביש חוצת גבולות")
 
     st.markdown("---")
     st.subheader("הרחבות DDP (פריקה מנוף וסיכוני אתר)")
@@ -219,6 +232,7 @@ with tab4:
     with col_eu1:
         st.markdown(f"**סיווג פרט מכס רגולטורי (HS Code):** `{hs_code_selected}`")
         st.markdown(f"**שיעור מכס בסיס באיחוד האירופי:** `{EU_CUSTOMS_DUTIES[cargo_type]['duty_pct']}%`")
+        st.markdown(f"**נמל פריקה:** `{dest_port}` | **מדינת יעד סופית:** `{dest_country}`")
         
         st.link_button("🔗 פתח בדיקת מכס רשמית ב-EU TARIC Database", taric_url)
         st.caption("הקישור יפתח את עמוד הבדיקה הרשמי של נציבות האיחוד האירופי עבור פרט המכס שנבחר.")
@@ -263,13 +277,13 @@ with tab5:
         "רכיב עלות": [
             "ערך ציוד (EXW)", 
             "הובלה פנימית בסין + מכס יצוא", 
-            f"הובלה ימית + {CARRIER_FUEL_SURCHARGES[selected_carrier]['code']} ({selected_carrier})", 
+            f"הובלה ימית + {CARRIER_FUEL_SURCHARGES[selected_carrier]['code']} ({selected_carrier}) [{dest_port}]", 
             "סקר הנדסי / מטען כבד", 
             "ביטוח ימי", 
             "מכס ומיסי יבוא", 
             "אגרות EPR, מיחזור ורגולציה סביבתית",
             "קנסות השהיה בנמל (Demurrage)", 
-            "אחסנה ושינוע יבשתי ביעד", 
+            "שינוע יבשתי חוצה-גבולות / Last Mile", 
             "מנוף פריקה והצבה באתר (DDP Scope)", 
             "מקדם סיכון DDP Contingency", 
             "מע\"מ (ניתן לקיזוז)"
