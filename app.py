@@ -152,11 +152,11 @@ with tab2:
         selected_carrier = st.selectbox("חברת ספנות מובילה:", list(CARRIER_FUEL_SURCHARGES.keys()), index=0)
         
         base_freight_per_unit = st.number_input(
-            "מחיר מכירה/בסיס להובלה ימית ליחידה ($):", 
+            "מחיר הובלה ימית בסיס ליחידה ($):", 
             value=float(suggested_freight) if incoterm != "FOB (Free on Board)" else 0.0, 
             step=500.0,
             disabled=(incoterm == "FOB (Free on Board)"),
-            help="ב-FOB הלקוח משלם את הים ישירות"
+            help="ב-FOB הלקוח משלם את ההובלה הימית ישירות"
         )
         
         carrier_baf_default = float(CARRIER_FUEL_SURCHARGES[selected_carrier]["baf"])
@@ -311,7 +311,7 @@ with tab5:
             heavy_lift_survey, 
             insurance_total_usd, 
             customs_duty_usd, 
-            epr_total_usd,
+            epr_total_usd, 
             demurrage_total_usd, 
             ext_storage_total_usd, 
             site_crane_unloading, 
