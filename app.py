@@ -12,7 +12,7 @@ st.title("🚢 Green-Logistics Customs & Landed Cost Calculator")
 st.caption("מחשבון עלויות יעד, מכס, רגולציה, קיימות ואחסנה לציוד אנרגיה מתחדשת ו-BESS")
 
 # ---------------------------------------------------------
-# טבלאות נתונים, חברות ספנות והיטלי דלק (BAF/NBF/MFR)
+# טבלאות נתונים, חברות ספנות, מכס באירופה והיטלי דלק
 # ---------------------------------------------------------
 VAT_RATES = {
     "Israel": 18.0,
@@ -23,6 +23,15 @@ VAT_RATES = {
     "Greece": 24.0,
     "Poland": 23.0,
     "Other / Custom": 0.0
+}
+
+# שיעורי מכס תקניים באיחוד האירופי (EU Tariff Matrix)
+EU_CUSTOMS_DUTIES = {
+    "BESS Container (UN3536 Class 9)": {"duty_pct": 2.7, "hs_code": "8507600000"},
+    "Solar PV Modules": {"duty_pct": 0.0, "hs_code": "8541400000"},
+    "Transformers / Heavy Equipment": {"duty_pct": 3.7, "hs_code": "8504230000"},
+    "Inverters / MV Station / Power Skids": {"duty_pct": 0.0, "hs_code": "8504409000"},
+    "E-House Units": {"duty_pct": 2.1, "hs_code": "8537200000"}
 }
 
 DEFAULT_INSURANCE_RATES = {
@@ -56,14 +65,6 @@ CARRIER_FUEL_SURCHARGES = {
     "Custom Carrier": {"baf": 450.0, "code": "Custom BAF"}
 }
 
-HS_CODES = {
-    "BESS Container (UN3536 Class 9)": "8507.60.00 (Lithium-ion Batteries / BESS)",
-    "Solar PV Modules": "8541.40.00 (Photovoltaic Solar Cells/Modules)",
-    "Transformers / Heavy Equipment": "8504.23.00 (Liquid Dielectric Transformers)",
-    "Inverters / MV Station / Power Skids": "8504.40.90 (Static Converters / Inverters)",
-    "E-House Units": "8537.20.00 (Boards, Panels, Consoles for Electricity)"
-}
-
 # ---------------------------------------------------------
 # סרגל צד: הגדרות מטבע ותנאי סחר
 # ---------------------------------------------------------
@@ -82,13 +83,13 @@ def convert_from_usd(amount_usd, target_curr):
     return amount_usd, "$"
 
 # ---------------------------------------------------------
-# לשוניות ראשיות (כולל לשונית קיימות ורגולציה המקורית)
+# לשוניות ראשיות
 # ---------------------------------------------------------
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📋 פרטי מטען ויעד", 
     "⚓ ספנות, BAF והיטלי נמל", 
     "📦 אחסנה, השהיות ו-Last Mile", 
-    "🌱 קיימות, EPR ורגולציה", 
+    "🇪🇺 מכס באירופה, EPR ורגולציה", 
     "📊 Landed Cost & Incoterms Summary"
 ])
 
@@ -111,7 +112,7 @@ with tab1:
         applied_vat = st.number_input(f"שיעור מע\"מ מוגדר ({dest_country}) %:", value=default_vat, step=0.5)
 
     with col2:
-        cargo_type = st.selectbox("סוג ציוד:", list(HS_CODES.keys()))
+        cargo_type = st.selectbox("סוג ציוד:", list(EU_CUSTOMS_DUTIES.keys()))
         container_count = st.number_input("כמות מכולות / יחידות:", min_value=1, value=10, step=1)
         
         if cargo_type == "BESS Container (UN3536 Class 9)":
@@ -161,7 +162,10 @@ with tab2:
     with col_b:
         china_first_mile = st.number_input("הובלה יבשתית בסין + מכס יצוא ואישורי חומ\"ס (USD סה\"כ):", value=3500.0, step=500.0)
         heavy_lift_survey = st.number_input("סקר הנדסי / היטל הובלה חריגה פרויקטלית ($ סה\"כ):", value=2500.0 if incoterm != "FOB (Free on Board)" else 0.0, step=500.0)
-        customs_duty_pct = st.number_input("שיעור מכס / מיסי יבוא (%):", value=2.7 if dest_country == "Romania" else 0.0, step=0.1, help="באיחוד האירופי/רומניה חל מכס מופחת של 2.7% על BESS")
+        
+        # חישוב מכס אוטומטי לפי האיחוד האירופי / מדינה
+        default_duty = EU_CUSTOMS_DUTIES[cargo_type]["duty_pct"] if dest_country != "Israel" else 0.0
+        customs_duty_pct = st.number_input("שיעור מכס / מיסי יבוא (%):", value=float(default_duty), step=0.1)
         
         default_ins_rate = DEFAULT_INSURANCE_RATES.get(dest_country, 0.15)
         insurance_pct = st.number_input(
@@ -205,23 +209,27 @@ with tab3:
     else:
         ext_storage_total_usd = 0.0
 
-# ----- T4: קיימות, EPR ורגולציה (שוחזר מהגרסה המקורית) -----
+# ----- T4: מכס באירופה, TARIC ורגולציה -----
 with tab4:
-    st.subheader("🌱 קיימות, פליטות פחמן (CO2) ואגרות מיחזור סביבתיות (EPR)")
+    st.subheader("🇪🇺 בדיקת מכס אירופי בלייב (EU TARIC Database Integration)")
     
-    col_env1, col_env2 = st.columns(2)
-    with col_env1:
-        st.markdown(f"**סיווג פרט מכס רגולטורי (HS Code):** `{HS_CODES.get(cargo_type, 'N/A')}`")
+    hs_code_selected = EU_CUSTOMS_DUTIES[cargo_type]["hs_code"]
+    taric_url = f"https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en&SimDate=20260825&Taric={hs_code_selected}"
+    
+    col_eu1, col_eu2 = st.columns(2)
+    with col_eu1:
+        st.markdown(f"**סיווג פרט מכס רגולטורי (HS Code):** `{hs_code_selected}`")
+        st.markdown(f"**שיעור מכס בסיס באיחוד האירופי:** `{EU_CUSTOMS_DUTIES[cargo_type]['duty_pct']}%`")
+        
+        # כפתור חיבור ישיר לבסיס הנתונים באירופה
+        st.link_button("🔗 פתח בדיקת מכס רשמית ב-EU TARIC Database", taric_url)
+        st.caption("הקישור יפתח את עמוד הבדיקה הרשמי של נציבות האיחוד האירופי עבור פרט המכס שנבחר.")
+
+    with col_eu2:
+        st.markdown("**אגרות EPR ורגולציה סביבתית**")
         epr_fee_per_unit = st.number_input("אגרת מיחזור סוללות / אחריות יצרן מורחבת (EPR / EoL Fee) ליחידה ($):", value=450.0 if "BESS" in cargo_type else 80.0, step=50.0)
         local_regulatory_permits = st.number_input("אישורים רגולטוריים / היתרי חומ\"ס מקומיים ($ סה\"כ):", value=1200.0 if is_dg else 300.0, step=100.0)
 
-    with col_env2:
-        st.subheader("חישוב פליטות פחמן (CO2 Emissions)")
-        nautical_miles = st.number_input("מרחק הובלה ימית מוערך (מייל ימי):", value=7500, step=500)
-        co2_factor_per_container_nm = 0.015 # kg CO2 per TEU-NM
-        total_co2_tons = (nautical_miles * float(container_count) * co2_factor_per_container_nm) / 1000.0
-        st.metric("טון פחמן מוערך למשלוח (Est. CO2 Footprint):", f"{total_co2_tons:,.2f} Tons CO2e")
-        
     epr_total_usd = (epr_fee_per_unit * float(container_count)) + local_regulatory_permits
 
 # ----- חישובים מסכמים -----
@@ -289,7 +297,6 @@ with tab5:
     
     st.dataframe(df_summary, use_container_width=True)
     
-    # ייצוא דוח Excel/CSV (תכונה מקורית)
     st.markdown("---")
     csv_data = df_summary.to_csv(index=False).encode('utf-8-sig')
     st.download_button(
