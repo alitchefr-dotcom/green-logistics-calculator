@@ -9,7 +9,7 @@ st.set_page_config(
 )
 
 st.title("🚢 Green-Logistics Customs & Landed Cost Calculator")
-st.caption("מחשבון עלויות יעד, מכס, רגולציה ואחסנה לציוד אנרגיה מתחדשת ו-BESS")
+st.caption("מחשבון עלויות יעד, מכס, רגולציה, קיימות ואחסנה לציוד אנרגיה מתחדשת ו-BESS")
 
 # ---------------------------------------------------------
 # טבלאות נתונים, חברות ספנות והיטלי דלק (BAF/NBF/MFR)
@@ -25,7 +25,6 @@ VAT_RATES = {
     "Other / Custom": 0.0
 }
 
-# פרמיות ביטוח ימי לפי מדינה (ברירת מחדל)
 DEFAULT_INSURANCE_RATES = {
     "Israel": 0.08,
     "Romania": 0.15,
@@ -37,7 +36,6 @@ DEFAULT_INSURANCE_RATES = {
     "Other / Custom": 0.15
 }
 
-# ימים חופשיים בנמל ברירת מחדל לפי מדינה
 DEFAULT_FREE_DAYS = {
     "Israel": 4,
     "Romania": 7,
@@ -58,6 +56,14 @@ CARRIER_FUEL_SURCHARGES = {
     "Custom Carrier": {"baf": 450.0, "code": "Custom BAF"}
 }
 
+HS_CODES = {
+    "BESS Container (UN3536 Class 9)": "8507.60.00 (Lithium-ion Batteries / BESS)",
+    "Solar PV Modules": "8541.40.00 (Photovoltaic Solar Cells/Modules)",
+    "Transformers / Heavy Equipment": "8504.23.00 (Liquid Dielectric Transformers)",
+    "Inverters / MV Station / Power Skids": "8504.40.90 (Static Converters / Inverters)",
+    "E-House Units": "8537.20.00 (Boards, Panels, Consoles for Electricity)"
+}
+
 # ---------------------------------------------------------
 # סרגל צד: הגדרות מטבע ותנאי סחר
 # ---------------------------------------------------------
@@ -76,12 +82,13 @@ def convert_from_usd(amount_usd, target_curr):
     return amount_usd, "$"
 
 # ---------------------------------------------------------
-# לשוניות ראשיות
+# לשוניות ראשיות (כולל לשונית קיימות ורגולציה המקורית)
 # ---------------------------------------------------------
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📋 פרטי מטען ויעד", 
     "⚓ ספנות, BAF והיטלי נמל", 
     "📦 אחסנה, השהיות ו-Last Mile", 
+    "🌱 קיימות, EPR ורגולציה", 
     "📊 Landed Cost & Incoterms Summary"
 ])
 
@@ -104,12 +111,7 @@ with tab1:
         applied_vat = st.number_input(f"שיעור מע\"מ מוגדר ({dest_country}) %:", value=default_vat, step=0.5)
 
     with col2:
-        cargo_type = st.selectbox("סוג ציוד:", [
-            "BESS Container (UN3536 Class 9)", 
-            "Solar PV Modules", 
-            "Transformers / Heavy Equipment", 
-            "Inverters / MV Station"
-        ])
+        cargo_type = st.selectbox("סוג ציוד:", list(HS_CODES.keys()))
         container_count = st.number_input("כמות מכולות / יחידות:", min_value=1, value=10, step=1)
         
         if cargo_type == "BESS Container (UN3536 Class 9)":
@@ -203,13 +205,32 @@ with tab3:
     else:
         ext_storage_total_usd = 0.0
 
+# ----- T4: קיימות, EPR ורגולציה (שוחזר מהגרסה המקורית) -----
+with tab4:
+    st.subheader("🌱 קיימות, פליטות פחמן (CO2) ואגרות מיחזור סביבתיות (EPR)")
+    
+    col_env1, col_env2 = st.columns(2)
+    with col_env1:
+        st.markdown(f"**סיווג פרט מכס רגולטורי (HS Code):** `{HS_CODES.get(cargo_type, 'N/A')}`")
+        epr_fee_per_unit = st.number_input("אגרת מיחזור סוללות / אחריות יצרן מורחבת (EPR / EoL Fee) ליחידה ($):", value=450.0 if "BESS" in cargo_type else 80.0, step=50.0)
+        local_regulatory_permits = st.number_input("אישורים רגולטוריים / היתרי חומ\"ס מקומיים ($ סה\"כ):", value=1200.0 if is_dg else 300.0, step=100.0)
+
+    with col_env2:
+        st.subheader("חישוב פליטות פחמן (CO2 Emissions)")
+        nautical_miles = st.number_input("מרחק הובלה ימית מוערך (מייל ימי):", value=7500, step=500)
+        co2_factor_per_container_nm = 0.015 # kg CO2 per TEU-NM
+        total_co2_tons = (nautical_miles * float(container_count) * co2_factor_per_container_nm) / 1000.0
+        st.metric("טון פחמן מוערך למשלוח (Est. CO2 Footprint):", f"{total_co2_tons:,.2f} Tons CO2e")
+        
+    epr_total_usd = (epr_fee_per_unit * float(container_count)) + local_regulatory_permits
+
 # ----- חישובים מסכמים -----
 cif_value_usd = exw_value_usd + china_first_mile + total_freight_usd
 insurance_total_usd = (cif_value_usd * (insurance_pct / 100.0))
 customs_duty_usd = ((cif_value_usd + total_freight_usd) * (customs_duty_pct / 100.0))
 vat_total_usd = ((cif_value_usd + total_freight_usd + customs_duty_usd) * (applied_vat / 100.0))
 
-subtotal_ddp = cif_value_usd + insurance_total_usd + customs_duty_usd + demurrage_total_usd + ext_storage_total_usd + site_crane_unloading
+subtotal_ddp = cif_value_usd + insurance_total_usd + customs_duty_usd + demurrage_total_usd + ext_storage_total_usd + site_crane_unloading + epr_total_usd
 contingency_usd = subtotal_ddp * (ddp_contingency_pct / 100.0)
 total_landed_usd = subtotal_ddp + contingency_usd
 
@@ -219,8 +240,8 @@ customs_display, _ = convert_from_usd(customs_duty_usd, display_currency)
 vat_display, _ = convert_from_usd(vat_total_usd, display_currency)
 storage_display, _ = convert_from_usd(demurrage_total_usd + ext_storage_total_usd, display_currency)
 
-# ----- T4: Summary Dashboard -----
-with tab4:
+# ----- T5: Summary Dashboard -----
+with tab5:
     st.subheader(f"📊 Summary Dashboard - {incoterm} ({display_currency})")
     
     m1, m2, m3, m4 = st.columns(4)
@@ -240,6 +261,7 @@ with tab4:
             "סקר הנדסי / מטען כבד", 
             "ביטוח ימי", 
             "מכס ומיסי יבוא", 
+            "אגרות EPR, מיחזור ורגולציה סביבתית",
             "קנסות השהיה בנמל (Demurrage)", 
             "אחסנה ושינוע יבשתי ביעד", 
             "מנוף פריקה והצבה באתר (DDP Scope)", 
@@ -253,6 +275,7 @@ with tab4:
             heavy_lift_survey, 
             insurance_total_usd, 
             customs_duty_usd, 
+            epr_total_usd,
             demurrage_total_usd, 
             ext_storage_total_usd, 
             site_crane_unloading, 
@@ -265,6 +288,16 @@ with tab4:
     df_summary["אחוז מסך העלות"] = df_summary["אחוז מסך העלות"].map("{:.2f}%".format)
     
     st.dataframe(df_summary, use_container_width=True)
+    
+    # ייצוא דוח Excel/CSV (תכונה מקורית)
+    st.markdown("---")
+    csv_data = df_summary.to_csv(index=False).encode('utf-8-sig')
+    st.download_button(
+        label="📥 הורד דוח ניתוח עלויות מלא (CSV/Excel)",
+        data=csv_data,
+        file_name=f"Landed_Cost_Report_{incoterm.split(' ')[0]}.csv",
+        mime="text/csv"
+    )
 
 st.markdown("---")
 st.caption("Developed for Green-Logistics Renewable Infrastructure & Storage Projects.")
