@@ -224,7 +224,7 @@ with tab4:
         with col_il2:
             st.markdown("**Local Regulation & Environmental Permits**" if not is_hebrew else "**אישורים ורגולציה מקומית בישראל**")
             epr_fee_per_unit = st.number_input("Environmental / Battery Fee ($):" if not is_hebrew else "אגרת איכות הסביבה / טיפול בסוללות ליחידה ($):", value=200.0 if "BESS" in cargo_type else 50.0, step=50.0)
-            local_regulatory_permits = st.number_input("Poisons Permit & Fire Inspection ($):" if not is_hebrew else "אישורי היתר רעלים, סוקר חומ\"ס ואישורי כיבוי ($ סה\"כ):", value=1500.0 if is_dg else 400.0, step=100.0)
+            local_regulatory_permits = st.number_input("Dangerous Goods (DG) & Hazardous Permits ($):" if not is_hebrew else "אישורי חומ\"ס, היתר רעלים וכיבוי ($ סה\"כ):", value=1500.0 if is_dg else 400.0, step=100.0)
     else:
         st.subheader("🇪🇺 EU Customs & TARIC Live Lookup" if not is_hebrew else "🇪🇺 מכס באירופה, בדיקת TARIC בלייב ורגולציה")
         hs_code_eu = CUSTOMS_DUTIES["EU"][cargo_type]["hs_code"]
@@ -239,7 +239,7 @@ with tab4:
         with col_eu2:
             st.markdown("**EPR Fees & Environmental Regulation**" if not is_hebrew else "**אגרות EPR ורגולציה סביבתית**")
             epr_fee_per_unit = st.number_input("EPR / EoL Recycling Fee ($):" if not is_hebrew else "אגרת מיחזור סוללות / אחריות יצרן מורחבת (EPR / EoL Fee) ליחידה ($):", value=450.0 if "BESS" in cargo_type else 80.0, step=50.0)
-            local_regulatory_permits = st.number_input("Local Permits / DG Approvals ($):" if not is_hebrew else "אישורים רגולטוריים / היתרי חומ\"ס מקומיים ($ סה\"כ):", value=1200.0 if is_dg else 300.0, step=100.0)
+            local_regulatory_permits = st.number_input("Dangerous Goods (DG) & Hazardous Permits ($):" if not is_hebrew else "אישורים רגולטוריים / היתרי חומ\"ס מקומיים ($ סה\"כ):", value=1200.0 if is_dg else 300.0, step=100.0)
 
     epr_total_usd = (epr_fee_per_unit * float(container_count)) + local_regulatory_permits
 
