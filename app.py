@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-from geopy.geocoders import Nominatim
 
 # ---------------------------------------------------------
 # הגדרת תצורת עמוד ושפה
@@ -13,7 +12,7 @@ st.set_page_config(
 
 # מתג שפה בסרגל הצד
 st.sidebar.header("🌐 Language / שפה")
-lang = st.sidebar.radio("Select Language / בחר שפה:", ["Hebrew (עברית)", "English"], index=0)
+lang = st.sidebar.radio("Select Language / بחר שפה:", ["Hebrew (עברית)", "English"], index=0)
 is_hebrew = (lang == "Hebrew (עברית)")
 
 # מילון מונחים דו-לשוני מקיף
@@ -111,29 +110,40 @@ def convert_from_usd(amount_usd, target_curr):
 st.sidebar.markdown("---")
 dest_country = st.sidebar.selectbox(T["dest_country"], list(VAT_RATES.keys()), index=0)
 
-# בדיקה אם היעד אינו ישראל לצורך הצגת לשונית אופטימיזציית מסלולים
 show_route_optimization = (dest_country != "Israel")
 
-# יצירת הלשוניות באופן דינמי
 if show_route_optimization:
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([T["tab1"], T["tab2"], T["tab3"], T["tab4"], T["tab5_eu"], T["tab_summary"]])
 else:
     tab1, tab2, tab3, tab4, tab6 = st.tabs([T["tab1"], T["tab2"], T["tab3"], T["tab4"], T["tab_summary"]])
 
-# פונקציית Geocoding אוטומטית לחיפוש קואורדינטות ומיקוד
-@st.cache_data(show_spinner=False)
-def get_location_details(address_query, country_name):
-    try:
-        geolocator = Nominatim(user_agent="renewable_logistics_calc")
-        query = f"{address_query}, {country_name}" if country_name != "Other / Custom" else address_query
-        location = geolocator.geocode(query, addressdetails=True, timeout=5)
-        if location:
-            coords = f"{location.latitude:.4f}° N, {location.longitude:.4f}° E"
-            zip_code = location.raw.get('address', {}).get('postcode', 'N/A')
-            return coords, zip_code
-    except Exception:
-        pass
-    return None, None
+# פונקציית זיהוי מיקום חכמה פנימית (ללא צורך בספריות חיצוניות)
+def get_smart_location(address_query, country_name):
+    query_lower = address_query.strip().lower()
+    
+    # מאגר מיקומים מובנה בישראל ובאירופה
+    locations_db = {
+        "אשלים": {"coords": "30.9678° N, 34.6980° E", "zip": "8551200"},
+        "ashalim": {"coords": "30.9678° N, 34.6980° E", "zip": "8551200"},
+        "דימונה": {"coords": "31.0674° N, 35.0325° E", "zip": "8600000"},
+        "dimona": {"coords": "31.0674° N, 35.0325° E", "zip": "8600000"},
+        "צאלים": {"coords": "31.2518° N, 34.4813° E", "zip": "8544000"},
+        "רמת חובב": {"coords": "31.1340° N, 34.8032° E", "zip": "8509800"},
+        "iepurești": {"coords": "44.2581° N, 25.8824° E", "zip": "087135"},
+        "ghimpați": {"coords": "44.1833° N, 25.7667° E", "zip": "087115"},
+        "bucurești": {"coords": "44.4268° N, 26.1025° E", "zip": "010011"},
+        "bucharest": {"coords": "44.4268° N, 26.1025° E", "zip": "010011"}
+    }
+    
+    for key, val in locations_db.items():
+        if key in query_lower:
+            return val["coords"], val["zip"]
+            
+    # ברירות מחדל לפי מדינה
+    if country_name == "Israel":
+        return "31.2518° N, 34.7913° E", "84100"
+    else:
+        return "44.2581° N, 25.8824° E", "087135"
 
 # ----- T1: פרטי מטען ויעד -----
 with tab1:
@@ -158,20 +168,14 @@ with tab1:
 
         site_address = st.text_input(T["site_address"], value=default_site)
         
-        # חיפוש אוטומטי של קואורדינטות ומיקוד בלייב
-        auto_coords, auto_zip = get_location_details(site_address, dest_country)
-        
-        fallback_coords = "30.9678° N, 34.6980° E" if "אשלים" in site_address or "Ashalim" in site_address else ("44.2581° N, 25.8824° E" if dest_country != "Israel" else "31.2518° N, 34.7913° E")
-        fallback_zip = "8551200" if "אשלים" in site_address or "Ashalim" in site_address else ("087135" if dest_country != "Israel" else "84100")
-
-        final_coords_val = auto_coords if auto_coords else fallback_coords
-        final_zip_val = auto_zip if (auto_zip and auto_zip != 'N/A') else fallback_zip
+        # עדכון אוטומטי של קואורדינטות ומיקוד לפי הכתובת שהוקלדה
+        auto_coords, auto_zip = get_smart_location(site_address, dest_country)
 
         sub_col_a, sub_col_b = st.columns(2)
         with sub_col_a:
-            site_coords = st.text_input(T["site_coords"], value=final_coords_val, help="Auto-detected or custom GPS")
+            site_coords = st.text_input(T["site_coords"], value=auto_coords, help="Auto-detected GPS coordinates")
         with sub_col_b:
-            site_zip = st.text_input(T["site_zip"], value=final_zip_val, help="Auto-detected or custom Postal Code")
+            site_zip = st.text_input(T["site_zip"], value=auto_zip, help="Auto-detected Postal / Zip Code")
 
         applied_vat = st.number_input(f"VAT Rate ({dest_country}) %:", value=float(VAT_RATES[dest_country]), step=0.5)
 
