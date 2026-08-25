@@ -12,7 +12,7 @@ st.set_page_config(
 
 # מתג שפה בסרגל הצד
 st.sidebar.header("🌐 Language / שפה")
-lang = st.sidebar.radio("Select Language / بחר שפה:", ["Hebrew (עברית)", "English"], index=0)
+lang = st.sidebar.radio("Select Language / בחר שפה:", ["Hebrew (עברית)", "English"], index=0)
 is_hebrew = (lang == "Hebrew (עברית)")
 
 # מילון מונחים דו-לשוני מקיף
@@ -37,7 +37,7 @@ T = {
     "origin_port": "Port of Loading (China):" if not is_hebrew else "נמל מוצא (סין):",
     "dest_port": "Port of Discharge:" if not is_hebrew else "נמל יעד ימי (Port of Discharge):",
     "dest_country": "Final Project Country:" if not is_hebrew else "מדינת יעד סופית (אתר הפרויקט):",
-    "site_address": "Project Site Location / Region:" if not is_hebrew else "כתובת / אזור אתר הפרויקט במדינה:",
+    "site_address": "Project Site Name / Location:" if not is_hebrew else "שם / כתובת אתר הפרויקט:",
     "site_coords": "GPS Coordinates (Lat, Long):" if not is_hebrew else "קואורדינטות GPS (רוחב, אורך):",
     "site_zip": "Postal / Zip Code:" if not is_hebrew else "מיקוד / קוד דואר:",
     "inland_drayage": "Inland Drayage to Site per Container ($):" if not is_hebrew else "שינוע יבשתי מנמל היעד לאתר הפרויקט ($ למכולה):",
@@ -110,40 +110,22 @@ def convert_from_usd(amount_usd, target_curr):
 st.sidebar.markdown("---")
 dest_country = st.sidebar.selectbox(T["dest_country"], list(VAT_RATES.keys()), index=0)
 
+# איפוס זיכרון אם המדינה השתנתה כדי שהשדות יהיו נקיים להזנה ידנית
+if 'last_country' not in st.session_state:
+    st.session_state.last_country = dest_country
+
+if st.session_state.last_country != dest_country:
+    st.session_state.last_country = dest_country
+    st.session_state.site_name_input = ""
+    st.session_state.site_coords_input = ""
+    st.session_state.site_zip_input = ""
+
 show_route_optimization = (dest_country != "Israel")
 
 if show_route_optimization:
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([T["tab1"], T["tab2"], T["tab3"], T["tab4"], T["tab5_eu"], T["tab_summary"]])
 else:
     tab1, tab2, tab3, tab4, tab6 = st.tabs([T["tab1"], T["tab2"], T["tab3"], T["tab4"], T["tab_summary"]])
-
-# פונקציית זיהוי מיקום חכמה פנימית (ללא צורך בספריות חיצוניות)
-def get_smart_location(address_query, country_name):
-    query_lower = address_query.strip().lower()
-    
-    # מאגר מיקומים מובנה בישראל ובאירופה
-    locations_db = {
-        "אשלים": {"coords": "30.9678° N, 34.6980° E", "zip": "8551200"},
-        "ashalim": {"coords": "30.9678° N, 34.6980° E", "zip": "8551200"},
-        "דימונה": {"coords": "31.0674° N, 35.0325° E", "zip": "8600000"},
-        "dimona": {"coords": "31.0674° N, 35.0325° E", "zip": "8600000"},
-        "צאלים": {"coords": "31.2518° N, 34.4813° E", "zip": "8544000"},
-        "רמת חובב": {"coords": "31.1340° N, 34.8032° E", "zip": "8509800"},
-        "iepurești": {"coords": "44.2581° N, 25.8824° E", "zip": "087135"},
-        "ghimpați": {"coords": "44.1833° N, 25.7667° E", "zip": "087115"},
-        "bucurești": {"coords": "44.4268° N, 26.1025° E", "zip": "010011"},
-        "bucharest": {"coords": "44.4268° N, 26.1025° E", "zip": "010011"}
-    }
-    
-    for key, val in locations_db.items():
-        if key in query_lower:
-            return val["coords"], val["zip"]
-            
-    # ברירות מחדל לפי מדינה
-    if country_name == "Israel":
-        return "31.2518° N, 34.7913° E", "84100"
-    else:
-        return "44.2581° N, 25.8824° E", "087135"
 
 # ----- T1: פרטי מטען ויעד -----
 with tab1:
@@ -155,7 +137,6 @@ with tab1:
         
         if dest_country == "Israel":
             dest_port = st.selectbox(T["dest_port"], ["Haifa / Ashdod, Israel", "Custom Destination Port"])
-            default_site = "אשלים" if is_hebrew else "Ashalim"
         else:
             dest_port = st.selectbox(T["dest_port"], [
                 "Burgas, Bulgaria (Burgas Transit to Romania)", 
@@ -164,18 +145,15 @@ with tab1:
                 "Hamburg / Rotterdam, North Europe", 
                 "Custom Destination Port"
             ])
-            default_site = "Iepurești"
 
-        site_address = st.text_input(T["site_address"], value=default_site)
+        # שדות הזנה חופשיים וידניים לחלוטין (ללא דריסת ערכים קבועים)
+        site_address = st.text_input(T["site_address"], key="site_name_input", placeholder="Enter site name or location..." if not is_hebrew else "הקלד שם אתר או מיקום...")
         
-        # עדכון אוטומטי של קואורדינטות ומיקוד לפי הכתובת שהוקלדה
-        auto_coords, auto_zip = get_smart_location(site_address, dest_country)
-
         sub_col_a, sub_col_b = st.columns(2)
         with sub_col_a:
-            site_coords = st.text_input(T["site_coords"], value=auto_coords, help="Auto-detected GPS coordinates")
+            site_coords = st.text_input(T["site_coords"], key="site_coords_input", placeholder="e.g. 37.9838° N, 23.7275° E" if not is_hebrew else "למשל: 37.9838° N, 23.7275° E")
         with sub_col_b:
-            site_zip = st.text_input(T["site_zip"], value=auto_zip, help="Auto-detected Postal / Zip Code")
+            site_zip = st.text_input(T["site_zip"], key="site_zip_input", placeholder="e.g. 10431" if not is_hebrew else "למשל: 10431")
 
         applied_vat = st.number_input(f"VAT Rate ({dest_country}) %:", value=float(VAT_RATES[dest_country]), step=0.5)
 
@@ -250,6 +228,10 @@ with tab3:
 
 # ----- T4: מכס ורגולציה -----
 with tab4:
+    display_site = site_address if site_address else ("Unnamed Site" if not is_hebrew else "אתר ללא שם")
+    display_coords = site_coords if site_coords else "N/A"
+    display_zip = site_zip if site_zip else "N/A"
+
     if dest_country == "Israel":
         st.subheader("🇮🇱 Customs, Taxes & Permits in Israel" if not is_hebrew else "🇮🇱 מכס, מיסים ורגולציה בישראל")
         col_il1, col_il2 = st.columns(2)
@@ -257,7 +239,7 @@ with tab4:
             st.markdown(f"**HS Code (Israel):** `{CUSTOMS_DUTIES['Israel'][cargo_type]['hs_code']}`")
             st.markdown(f"**Customs Duty:** `0.0%` (" + ("Exempt" if not is_hebrew else "פטור לפי צו תעריף המכס הישראלי") + ")")
             st.markdown(f"**Import VAT:** `{applied_vat}%`")
-            st.markdown(f"**Site Location:** `{site_address}` (GPS: `{site_coords}`, Zip: `{site_zip}`)")
+            st.markdown(f"**Site Location:** `{display_site}` (GPS: `{display_coords}`, Zip: `{display_zip}`)")
             st.info("💡 **Regulatory Note (Israel):** Import of renewable energy & BESS equipment is exempt from customs duty and purchase tax, but subject to Poisons Permit and Environmental Protection/Fire Department approvals." if not is_hebrew else "💡 **הערה רגולטורית (ישראל):** יבוא מתקני אנרגיה מתחדשת ואגירה (BESS) פטור ממכס וממס קנייה, אך כפוף לאישור היתר רעלים ורישוי המשרד להגנת הסביבה/כבאות.")
 
         with col_il2:
@@ -272,7 +254,7 @@ with tab4:
         with col_eu1:
             st.markdown(f"**HS Code:** `{hs_code_eu}`")
             st.markdown(f"**EU Duty Rate:** `{CUSTOMS_DUTIES['EU'][cargo_type]['duty_pct']}%`")
-            st.markdown(f"**Project Site:** `{site_address}` (GPS: `{site_coords}`, Zip: `{site_zip}`)")
+            st.markdown(f"**Project Site:** `{display_site}` (GPS: `{display_coords}`, Zip: `{display_zip}`)")
             st.link_button("🔗 Open Official EU TARIC Database" if not is_hebrew else "🔗 פתח בדיקת מכס רשמית ב-EU TARIC Database", taric_url)
             st.caption("Opens the official European Commission customs lookup page." if not is_hebrew else "הקישור יפתח את עמוד הבדיקה הרשמי של נציבות האיחוד האירופי עבור פרט המכס שנבחר.")
         with col_eu2:
@@ -285,19 +267,23 @@ with tab4:
 # ----- T5: ניתוח מסלולים באירופה (מוצג רק כשהיעד אינו ישראל) -----
 if show_route_optimization:
     with tab5:
-        st.subheader(f"🗺️ Port Route Optimization ({dest_country} Projects)" if not is_hebrew else f"🗺️ ניתוח השוואתי: מסלולי נמלים עבור אתר הפרויקט: {site_address}")
-        st.caption(f"Route comparison derived for project site location: {site_address} (GPS: {site_coords}, Zip: {site_zip})" if not is_hebrew else f"השוואת מסלולי נמלים מותאמת למיקום האתר: {site_address} (קואורדינטות: {site_coords}, מיקוד: {site_zip})")
+        display_site = site_address if site_address else ("Unnamed Site" if not is_hebrew else "אתר ללא שם")
+        display_coords = site_coords if site_coords else "N/A"
+        display_zip = site_zip if site_zip else "N/A"
+
+        st.subheader(f"🗺️ Port Route Optimization ({dest_country} Projects)" if not is_hebrew else f"🗺️ ניתוח השוואתי: מסלולי נמלים עבור אתר הפרויקט: {display_site}")
+        st.caption(f"Route comparison derived for project site location: {display_site} (GPS: {display_coords}, Zip: {display_zip})" if not is_hebrew else f"השוואת מסלולי נמלים מותאמת למיקום האתר: {display_site} (קואורדינטות: {display_coords}, מיקוד: {display_zip})")
         
         col_r1, col_r2 = st.columns(2)
         with col_r1:
             st.markdown("### 🇧🇬 Route A: via Burgas Port (Bulgaria)")
             st.markdown("* **Ocean Freight:** ~$18,375 / unit")
-            st.markdown(f"* **Cross-Border Drayage to {site_address}:** ~$1,850 / container")
+            st.markdown(f"* **Cross-Border Drayage to {display_site}:** ~$1,850 / container")
             st.markdown("* **Key Advantage:** Fast DG Class 9 port clearance, lower congestion")
         with col_r2:
             st.markdown("### 🇷🇴 Route B: via Constanța Port (Romania)")
             st.markdown("* **Ocean Freight:** ~$19,500 / unit")
-            st.markdown(f"* **Inland Drayage to {site_address}:** ~$850 / container")
+            st.markdown(f"* **Inland Drayage to {display_site}:** ~$850 / container")
             st.markdown("* **Key Advantage:** Direct discharge in destination country, no customs transit border cross")
 
 # ----- חישובים מסכמים -----
