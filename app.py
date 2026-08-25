@@ -3,12 +3,12 @@ import pandas as pd
 
 # הגדרת תצורת עמוד
 st.set_page_config(
-    page_title="Green-Logistics Customs & Landed Cost Calculator",
-    page_icon="🚢",
+    page_title="Renewable Energy Logistics & Landed Cost Calculator",
+    page_icon="⚡",
     layout="wide"
 )
 
-st.title("🚢 Green-Logistics Customs & Landed Cost Calculator")
+st.title("⚡ Renewable Energy Logistics & Landed Cost Calculator")
 st.caption("מחשבון עלויות יעד, מכס, רגולציה, קיימות ואחסנה לציוד אנרגיה מתחדשת ו-BESS")
 
 # ---------------------------------------------------------
@@ -163,7 +163,6 @@ with tab2:
         china_first_mile = st.number_input("הובלה יבשתית בסין + מכס יצוא ואישורי חומ\"ס (USD סה\"כ):", value=3500.0, step=500.0)
         heavy_lift_survey = st.number_input("סקר הנדסי / היטל הובלה חריגה פרויקטלית ($ סה\"כ):", value=2500.0 if incoterm != "FOB (Free on Board)" else 0.0, step=500.0)
         
-        # חישוב מכס אוטומטי לפי האיחוד האירופי / מדינה
         default_duty = EU_CUSTOMS_DUTIES[cargo_type]["duty_pct"] if dest_country != "Israel" else 0.0
         customs_duty_pct = st.number_input("שיעור מכס / מיסי יבוא (%):", value=float(default_duty), step=0.1)
         
@@ -221,7 +220,6 @@ with tab4:
         st.markdown(f"**סיווג פרט מכס רגולטורי (HS Code):** `{hs_code_selected}`")
         st.markdown(f"**שיעור מכס בסיס באיחוד האירופי:** `{EU_CUSTOMS_DUTIES[cargo_type]['duty_pct']}%`")
         
-        # כפתור חיבור ישיר לבסיס הנתונים באירופה
         st.link_button("🔗 פתח בדיקת מכס רשמית ב-EU TARIC Database", taric_url)
         st.caption("הקישור יפתח את עמוד הבדיקה הרשמי של נציבות האיחוד האירופי עבור פרט המכס שנבחר.")
 
@@ -307,4 +305,4 @@ with tab5:
     )
 
 st.markdown("---")
-st.caption("Developed for Green-Logistics Renewable Infrastructure & Storage Projects.")
+st.caption("Developed for Renewable Energy Infrastructure & Storage Projects.")
