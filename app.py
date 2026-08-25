@@ -25,6 +25,18 @@ VAT_RATES = {
     "Other / Custom": 0.0
 }
 
+# פרמיות ביטוח ימי לפי מדינה (ברירת מחדל)
+DEFAULT_INSURANCE_RATES = {
+    "Israel": 0.08,
+    "Romania": 0.15,
+    "Germany": 0.15,
+    "Spain": 0.15,
+    "Italy": 0.15,
+    "Greece": 0.15,
+    "Poland": 0.15,
+    "Other / Custom": 0.15
+}
+
 CARRIER_FUEL_SURCHARGES = {
     "ZIM (Integrated Shipping)": {"baf": 843.0, "code": "NBF / EFS"},
     "Hapag-Lloyd": {"baf": 780.0, "code": "MFR / EFS"},
@@ -135,8 +147,16 @@ with tab2:
     with col_b:
         china_first_mile = st.number_input("הובלה יבשתית בסין + מכס יצוא ואישורי חומ\"ס (USD סה\"כ):", value=3500.0, step=500.0)
         heavy_lift_survey = st.number_input("סקר הנדסי / היטל הובלה חריגה פרויקטלית ($ סה\"כ):", value=2500.0 if incoterm != "FOB (Free on Board)" else 0.0, step=500.0)
-        customs_duty_pct = st.number_input("שיעור מכס / מיסי יבוא (%):", value=0.0, step=0.5)
-        insurance_pct = st.number_input("פרמיית ביטוח ימי (% מערך ה-CIF):", value=0.35 if incoterm != "FOB (Free on Board)" else 0.0, step=0.05)
+        customs_duty_pct = st.number_input("שיעור מכס / מיסי יבוא (%):", value=2.7 if dest_country == "Romania" else 0.0, step=0.1, help="באיחוד האירופי/רומניה חל מכס מופחת של 2.7% על BESS")
+        
+        # פרמיית ביטוח אוטומטית לפי מדינת היעד
+        default_ins_rate = DEFAULT_INSURANCE_RATES.get(dest_country, 0.15)
+        insurance_pct = st.number_input(
+            "פרמיית ביטוח ימי (% מערך ה-CIF):", 
+            value=default_ins_rate if incoterm != "FOB (Free on Board)" else 0.0, 
+            step=0.01,
+            help=f"עודכן אוטומטית לפי מדינת היעד שנבחרה ({dest_country})"
+        )
 
     total_freight_usd = (base_freight_per_unit + baf_surcharge + thc_port_fee) * float(container_count) + heavy_lift_survey if incoterm != "FOB (Free on Board)" else 0.0
 
