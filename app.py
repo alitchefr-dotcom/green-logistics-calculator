@@ -203,7 +203,7 @@ with tab3:
     col_x, col_y = st.columns(2)
     with col_x:
         default_fd = DEFAULT_FREE_DAYS.get(dest_country, 7)
-        free_days = st.number_input("ימים חופשיים בנמל (Free Days):", value=default_fd, step=1, help="בישראל מוגדרות 4 ימות חופשיות מול הנמלים")
+        free_days = st.number_input("ימים חופשיים בנמל (Free Days):", value=default_fd, step=1, help="בישראל מוגדרים 4 ימים חופשיים מול הנמלים")
         actual_port_days = st.number_input("ימי אחסנה בפועל בנמל:", value=12, step=1)
         demurrage_daily_rate = st.number_input("קנס השהיה יומי ממוצע למכולת חומ\"ס ($):", value=250.0 if is_dg else 150.0, step=10.0)
         
@@ -293,7 +293,7 @@ with tab5:
             "הובלה פנימית בסין + עמילות יצוא", 
             "אגרות נמל מוצא בסין (Origin THC & Port Fees)", 
             f"הובלה ימית + {CARRIER_FUEL_SURCHARGES[selected_carrier]['code']} + THC יעד ({selected_carrier}) [{dest_port}]", 
-            "סקר הנדסי / מטען כבד", 
+            "诉קר הנדסי / מטען כבד", 
             "ביטוח ימי", 
             "מכס ומיסי יבוא", 
             "אגרות EPR, מיחזור ורגולציה סביבתית",
