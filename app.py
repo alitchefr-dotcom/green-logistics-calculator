@@ -12,7 +12,7 @@ st.title("⚡ Renewable Energy Logistics & Landed Cost Calculator")
 st.caption("מחשבון עלויות יעד, מכס, רגולציה, קיימות ואחסנה לציוד אנרגיה מתחדשת ו-BESS")
 
 # ---------------------------------------------------------
-# טבלאות נתונים, חברות ספנות, מכס באירופה והיטלי דלק
+# טבלאות נתונים, חברות ספנות, מכס באירופה/ישראל והיטלי דלק
 # ---------------------------------------------------------
 VAT_RATES = {
     "Israel": 18.0,
@@ -25,13 +25,22 @@ VAT_RATES = {
     "Other / Custom": 0.0
 }
 
-# שיעורי מכס תקניים באיחוד האירופי (EU Tariff Matrix)
-EU_CUSTOMS_DUTIES = {
-    "BESS Container (UN3536 Class 9)": {"duty_pct": 2.7, "hs_code": "8507600000"},
-    "Solar PV Modules": {"duty_pct": 0.0, "hs_code": "8541400000"},
-    "Transformers / Heavy Equipment": {"duty_pct": 3.7, "hs_code": "8504230000"},
-    "Inverters / MV Station / Power Skids": {"duty_pct": 0.0, "hs_code": "8504409000"},
-    "E-House Units": {"duty_pct": 2.1, "hs_code": "8537200000"}
+# שיעורי מכס תקניים (EU vs Israel)
+CUSTOMS_DUTIES = {
+    "EU": {
+        "BESS Container (UN3536 Class 9)": {"duty_pct": 2.7, "hs_code": "8507600000"},
+        "Solar PV Modules": {"duty_pct": 0.0, "hs_code": "8541400000"},
+        "Transformers / Heavy Equipment": {"duty_pct": 3.7, "hs_code": "8504230000"},
+        "Inverters / MV Station / Power Skids": {"duty_pct": 0.0, "hs_code": "8504409000"},
+        "E-House Units": {"duty_pct": 2.1, "hs_code": "8537200000"}
+    },
+    "Israel": {
+        "BESS Container (UN3536 Class 9)": {"duty_pct": 0.0, "hs_code": "8507.60.00"},
+        "Solar PV Modules": {"duty_pct": 0.0, "hs_code": "8541.40.00"},
+        "Transformers / Heavy Equipment": {"duty_pct": 0.0, "hs_code": "8504.23.00"},
+        "Inverters / MV Station / Power Skids": {"duty_pct": 0.0, "hs_code": "8504.40.90"},
+        "E-House Units": {"duty_pct": 0.0, "hs_code": "8537.20.00"}
+    }
 }
 
 DEFAULT_INSURANCE_RATES = {
@@ -83,13 +92,16 @@ def convert_from_usd(amount_usd, target_curr):
     return amount_usd, "$"
 
 # ---------------------------------------------------------
-# לשוניות ראשיות
+# לשוניות ראשיות (דינמיות לפי מדינת יעד)
 # ---------------------------------------------------------
+# קביעה אם היעד הוא ישראל או אירופה
+# נבדוק בהמשך בלשוניות
+
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📋 פרטי מטען, נמלים ויעד", 
     "⚓ ספנות, BAF ותעריפי נמלים", 
     "📦 אחסנה, השהיות ו-Last Mile", 
-    "🇪🇺 מכס באירופה, EPR ורגולציה", 
+    "⚖️ מכס, מיסים ורגולציה", 
     "📊 Landed Cost & Incoterms Summary"
 ])
 
@@ -116,13 +128,15 @@ with tab1:
             "Custom Destination Port"
         ])
         
-        dest_country = st.selectbox("מדינת יעד סופית (אתר הפרויקט):", list(VAT_RATES.keys()), index=1 if "Burgas" in dest_port else 0)
+        # התאמת מדינת יעד דינמית לפי נמל הפריקה
+        default_country_idx = 0 if "Israel" in dest_port else (1 if "Burgas" in dest_port or "Constanța" in dest_port else 0)
+        dest_country = st.selectbox("מדינת יעד סופית (אתר הפרויקט):", list(VAT_RATES.keys()), index=default_country_idx)
         
         default_vat = float(VAT_RATES[dest_country])
         applied_vat = st.number_input(f"שיעור מע\"מ מוגדר ({dest_country}) %:", value=default_vat, step=0.5)
 
     with col2:
-        cargo_type = st.selectbox("סוג ציוד:", list(EU_CUSTOMS_DUTIES.keys()))
+        cargo_type = st.selectbox("סוג ציוד:", list(CUSTOMS_DUTIES["EU"].keys()))
         container_count = st.number_input("כמות מכולות / יחידות:", min_value=1, value=10, step=1)
         
         if cargo_type == "BESS Container (UN3536 Class 9)":
@@ -182,7 +196,9 @@ with tab2:
         st.markdown("**מיסים וביטוח:**")
         heavy_lift_survey = st.number_input("סקר הנדסי / היטל הובלה חריגה פרויקטלית ($ סה\"כ):", value=2500.0 if incoterm != "FOB (Free on Board)" else 0.0, step=500.0)
         
-        default_duty = EU_CUSTOMS_DUTIES[cargo_type]["duty_pct"] if dest_country != "Israel" else 0.0
+        # מכס דינמי - 0% לישראל, 2.7% לאירופה (עבור BESS)
+        region_key = "Israel" if dest_country == "Israel" else "EU"
+        default_duty = CUSTOMS_DUTIES[region_key][cargo_type]["duty_pct"]
         customs_duty_pct = st.number_input("שיעור מכס / מיסי יבוא (%):", value=float(default_duty), step=0.1)
         
         default_ins_rate = DEFAULT_INSURANCE_RATES.get(dest_country, 0.15)
@@ -235,26 +251,46 @@ with tab3:
     else:
         ext_storage_total_usd = 0.0
 
-# ----- T4: מכס באירופה, TARIC ורגולציה -----
+# ----- T4: מכס, מיסים ורגולציה (מותאם דינמית - ישראל vs אירופה) -----
 with tab4:
-    st.subheader("🇪🇺 בדיקת מכס אירופי בלייב (EU TARIC Database Integration)")
-    
-    hs_code_selected = EU_CUSTOMS_DUTIES[cargo_type]["hs_code"]
-    taric_url = f"https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en&SimDate=20260825&Taric={hs_code_selected}"
-    
-    col_eu1, col_eu2 = st.columns(2)
-    with col_eu1:
-        st.markdown(f"**סיווג פרט מכס רגולטורי (HS Code):** `{hs_code_selected}`")
-        st.markdown(f"**שיעור מכס בסיס באיחוד האירופי:** `{EU_CUSTOMS_DUTIES[cargo_type]['duty_pct']}%`")
-        st.markdown(f"**נמל פריקה:** `{dest_port}` | **מדינת יעד סופית:** `{dest_country}`")
+    if dest_country == "Israel":
+        st.subheader("🇮🇱 מכס, מיסים ורגולציה בישראל")
         
-        st.link_button("🔗 פתח בדיקת מכס רשמית ב-EU TARIC Database", taric_url)
-        st.caption("הקישור יפתח את עמוד הבדיקה הרשמי של נציבות האיחוד האירופי עבור פרט המכס שנבחר.")
+        hs_code_israel = CUSTOMS_DUTIES["Israel"][cargo_type]["hs_code"]
+        
+        col_il1, col_il2 = st.columns(2)
+        with col_il1:
+            st.markdown(f"**פרט מכס ישראלי (HS Code):** `{hs_code_israel}`")
+            st.markdown(f"**שיעור מכס בסיסי:** `0.0%` (פטור לפי צו תעריף המכס הישראלי)")
+            st.markdown(f"**מע\"מ יבוא בישראל:** `{applied_vat}%` (ניתן לקיזוז תשומות)")
+            st.markdown(f"**נמל פריקה:** `{dest_port}`")
+            
+            st.info("💡 **הערה רגולטורית (ישראל):** יבוא מתקני אנרגיה מתחדשת ואגירה (BESS) פטור ממכס וממס קנייה, אך כפוף לאישור היתר רעלים ורישוי המשרד להגנת הסביבה/כבאות.")
 
-    with col_eu2:
-        st.markdown("**אגרות EPR ורגולציה סביבתית**")
-        epr_fee_per_unit = st.number_input("אגרת מיחזור סוללות / אחריות יצרן מורחבת (EPR / EoL Fee) ליחידה ($):", value=450.0 if "BESS" in cargo_type else 80.0, step=50.0)
-        local_regulatory_permits = st.number_input("אישורים רגולטוריים / היתרי חומ\"ס מקומיים ($ סה\"כ):", value=1200.0 if is_dg else 300.0, step=100.0)
+        with col_il2:
+            st.markdown("**אישורים ורגולציה מקומית בישראל**")
+            epr_fee_per_unit = st.number_input("אגרת איכות הסביבה / טיפול בסוללות ליחידה ($):", value=200.0 if "BESS" in cargo_type else 50.0, step=50.0)
+            local_regulatory_permits = st.number_input("אישורי היתר רעלים, סוקר חומ\"ס ואישורי כיבוי ($ סה\"כ):", value=1500.0 if is_dg else 400.0, step=100.0)
+
+    else:
+        st.subheader("🇪🇺 מכס באירופה, בדיקת TARIC בלייב ורגולציה")
+        
+        hs_code_eu = CUSTOMS_DUTIES["EU"][cargo_type]["hs_code"]
+        taric_url = f"https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en&SimDate=20260825&Taric={hs_code_eu}"
+        
+        col_eu1, col_eu2 = st.columns(2)
+        with col_eu1:
+            st.markdown(f"**סיווג פרט מכס רגולטורי (HS Code):** `{hs_code_eu}`")
+            st.markdown(f"**שיעור מכס בסיס באיחוד האירופי:** `{CUSTOMS_DUTIES['EU'][cargo_type]['duty_pct']}%`")
+            st.markdown(f"**נמל פריקה:** `{dest_port}` | **מדינת יעד סופית:** `{dest_country}`")
+            
+            st.link_button("🔗 פתח בדיקת מכס רשמית ב-EU TARIC Database", taric_url)
+            st.caption("הקישור יפתח את עמוד הבדיקה הרשמי של נציבות האיחוד האירופי עבור פרט המכס שנבחר.")
+
+        with col_eu2:
+            st.markdown("**אגרות EPR ורגולציה סביבתית**")
+            epr_fee_per_unit = st.number_input("אגרת מיחזור סוללות / אחריות יצרן מורחבת (EPR / EoL Fee) ליחידה ($):", value=450.0 if "BESS" in cargo_type else 80.0, step=50.0)
+            local_regulatory_permits = st.number_input("אישורים רגולטוריים / היתרי חומ\"ס מקומיים ($ סה\"כ):", value=1200.0 if is_dg else 300.0, step=100.0)
 
     epr_total_usd = (epr_fee_per_unit * float(container_count)) + local_regulatory_permits
 
