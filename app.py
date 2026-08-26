@@ -125,7 +125,9 @@ if show_route_optimization:
 else:
     tab1, tab2, tab3, tab4, tab6 = st.tabs([T["tab1"], T["tab2"], T["tab3"], T["tab4"], T["tab_summary"]])
 
-# ----- T1: פרטי מטען ויעד -----
+# =========================================================
+# הגדרת ממשק משתמש (קלט הנתונים בכל הלשוניות קודם)
+# =========================================================
 with tab1:
     st.subheader("Equipment Specification & Site Destination" if not is_hebrew else "מפרט ציוד, מאפייני פרויקט ומיקום אתר")
     col1, col2 = st.columns(2)
@@ -183,12 +185,6 @@ with tab1:
 
         exw_value_usd = st.number_input(T["exw_val"], value=500000.0, step=10000.0, min_value=0.0)
 
-# חישוב מקדים של ביטוח ומכס עבור מחיר הספק ותנאי DDP/CIF
-base_freight_est = suggested_freight * float(container_count)
-cif_base_for_insurance = exw_value_usd + 2200.0 + 1300.0 + base_freight_est
-insurance_total_usd = cif_base_for_insurance * (DEFAULT_INSURANCE_RATES.get(dest_country, 0.15) / 100.0)
-
-# ----- T2: שרשרת אספקה ותנאי סחר -----
 with tab2:
     st.subheader("Full Supply Chain & Incoterms Allocation" if not is_hebrew else "שרשרת אספקה מלאה והקצאת עלויות לפי Incoterms")
     st.info(f"💡 Current commercial Incoterm: **{incoterm}**. Defines seller's price scope including customs and local delivery under DDP." if not is_hebrew else f"💡 תנאי הסחר המסחרי: **{incoterm}**. מגדיר את היקף מחיר הספק, לרבות מכס והובלה לאתר תחת DDP.")
@@ -209,34 +205,10 @@ with tab2:
         customs_duty_pct = st.number_input("Indicative Import Customs Duty (%):" if not is_hebrew else "שיעור מכס אינדיקטיבי (%):", value=float(CUSTOMS_DUTIES[region_key][cargo_type]["duty_pct"]), step=0.1, min_value=0.0, max_value=100.0)
         insurance_pct = st.number_input("Marine Insurance (% of CIF base):" if not is_hebrew else "פרמיית ביטוח ימי (% מערך ה-CIF):", value=DEFAULT_INSURANCE_RATES.get(dest_country, 0.15), step=0.01, min_value=0.0)
 
-    total_ocean_freight = (base_freight_per_unit + baf_surcharge) * float(container_count)
-    cif_valuation_base = exw_value_usd + china_inland_drayage + china_origin_thc + total_ocean_freight
-    insurance_total_usd = cif_valuation_base * (insurance_pct / 100.0)
-    
-    customs_valuation_base_usd = cif_valuation_base + insurance_total_usd
-    customs_duty_usd = customs_valuation_base_usd * (customs_duty_pct / 100.0)
-    destination_thc_total = dest_thc_port_fee * float(container_count)
-
     supplier_quote_available = st.checkbox("Enter actual supplier commercial quote" if not is_hebrew else "הזן הצעת מחיר מסחרית אמיתית מהספק", value=False)
     if supplier_quote_available:
         supplier_quoted_price = st.number_input("Supplier Quoted Price under Selected Incoterm (USD):" if not is_hebrew else "מחיר ספק מוצע תחת תנאי הסחר הנבחר (USD):", min_value=0.0, value=exw_value_usd)
-        supplier_commercial_price = supplier_quoted_price
-    else:
-        default_drayage_val = 1850.0 if "Burgas" in dest_port else 600.0
-        est_inland_drayage = default_drayage_val * float(container_count)
-        
-        supplier_commercial_price_options = {
-            "EXW (Ex Works)": exw_value_usd,
-            "FOB (Free on Board)": exw_value_usd + china_inland_drayage + china_origin_thc,
-            "CIF (Cost, Insurance & Freight)": exw_value_usd + china_inland_drayage + china_origin_thc + total_ocean_freight + insurance_total_usd,
-            "DDP (Delivered Duty Paid)": (
-                exw_value_usd + china_inland_drayage + china_origin_thc + total_ocean_freight + insurance_total_usd
-                + customs_duty_usd + destination_thc_total + est_inland_drayage + site_crane_unloading + heavy_lift_survey
-            )
-        }
-        supplier_commercial_price = supplier_commercial_price_options.get(incoterm, exw_value_usd)
 
-# ----- T3: אחסנה והובלה יבשתית -----
 with tab3:
     st.subheader("Port Demurrage, Storage & Inland Drayage" if not is_hebrew else "קנסות נמל, אחסנה חיצונית והובלה יבשתית לאתר")
     col_x, col_y = st.columns(2)
@@ -260,54 +232,28 @@ with tab3:
     with col_ddp2:
         ddp_contingency_pct = st.number_input("Project Risk Contingency (%):" if not is_hebrew else "מקדם סיכון ובלתי מתוכנן פרויקטלי (%):", value=5.0, step=1.0, min_value=0.0, max_value=100.0)
 
-    overdue_days = max(0, actual_port_days - free_days)
-    demurrage_total_usd = float(overdue_days) * demurrage_daily_rate * float(container_count)
-    external_storage_total_usd = (float(ext_storage_days) * ext_storage_daily_rate * float(container_count)) if use_external_storage else 0.0
-    inland_drayage_total_usd = inland_drayage_per_unit * float(container_count)
-
-# ----- T4: רגולציה מלאה, חומ"ס, דרכון סוללה ואחריות סביבתית אופציונלית -----
 with tab4:
-    display_site = site_address if site_address else ("Unnamed Site" if not is_hebrew else "אתר ללא שם")
-    display_coords = site_coords if site_coords else "N/A"
-    display_zip = site_zip if site_zip else "N/A"
-
     st.subheader("🛡️ DG Compliance, Battery Passports & End-of-Life Regulation" if not is_hebrew else "🛡️ רגולציית חומ\"ס DG, דרכון סוללה ותקנות סוף חיים (EoL)")
     
     col_reg1, col_reg2 = st.columns(2)
     with col_reg1:
         st.markdown("### 📦 Dangerous Goods & Safety Permits" if not is_hebrew else "### 📦 מטענים מסוכנים והיתרי בטיחות")
         if dest_country == "Israel":
-            st.markdown(f"**HS Code (Israel):** `{CUSTOMS_DUTIES['Israel'][cargo_type]['hs_code']}`")
-            st.markdown(f"**Customs Duty:** `{customs_duty_pct}%` (Indicative rate)")
-            st.markdown(f"**Import VAT:** `{applied_vat}%` (Recoverable)")
             st.info("💡 **Israel Regulatory Requirements (Potential):** Import of BESS may require a Ministry of Environmental Protection Poisons Permit, Fire & Rescue Authority safety approval. Verify applicability with a licensed customs broker." if not is_hebrew else "💡 **דרישות רגולטוריות אפשריות בישראל:** יבוא מערכות BESS עשוי לדרוש היתר רעלים מהמשרד להגנת הסביבה ואישור כיבוי אש. יש לאמת את תחולתן מול עמיל מכס מורשה.")
         else:
-            hs_code_eu = CUSTOMS_DUTIES["EU"][cargo_type]["hs_code"]
-            taric_url = f"https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en&Taric={hs_code_eu}"
-            st.markdown(f"**EU HS Code:** `{hs_code_eu}`")
-            st.markdown(f"**EU Duty Rate:** `{customs_duty_pct}%` (Indicative)")
-            st.link_button("🔗 Open Official EU TARIC Database", taric_url)
             st.info("💡 **EU Battery Regulation Compliance (Potential):** Shipments into the EU may require adherence to the EU Battery Regulation. Verify applicability with a licensed customs broker." if not is_hebrew else "💡 **ציות אפשרי לרגולציית הסוללות באיחוד:** משלוחים לאירופה עשויים לחייב עמידה ברגולציית הסוללות. יש לאמת את תחולתה מול עמיל מכס מורשה.")
 
         local_regulatory_permits = st.number_input("Hazardous Permits & DG Clearance ($):" if not is_hebrew else "אישורי חומ\"ס, היתר רעלים ואישורי כיבוי ($ סה\"כ):", value=1500.0 if is_dg else 400.0, step=100.0, min_value=0.0)
 
     with col_reg2:
         st.markdown("### ♻️ Battery Passport, EPR & End-of-Life (EoL)" if not is_hebrew else "### ♻️ דרכון סוללה, EPR וסוף חיים (EoL)")
-        st.caption("Optional or conditional compliance costs for recycling and sustainability tracking." if not is_hebrew else "עלויות ציות אופציונליות או מותנות למיחזור ומעקב קיימות.")
-        
         include_epr_costs = st.checkbox("Include EPR & Battery Passport in current financial calculation" if not is_hebrew else "כלול אגרות EPR ודרכון סוללה בחישוב הפיננסי הנוכחי", value=True)
         
         epr_fee_per_unit = st.number_input("EPR / Battery Recycling Fee per Unit ($):" if not is_hebrew else "אגרת מיחזור סוללות / EPR ליחידה ($):", value=450.0 if "BESS" in cargo_type else 80.0, step=50.0, min_value=0.0, disabled=not include_epr_costs)
         battery_passport_fee = st.number_input("Battery Passport & Carbon Audit Fee ($):" if not is_hebrew else "עלות הפקת דרכון סוללה ובדיקת טביעת רגל פחמנית ($ סה\"כ):", value=1200.0 if "BESS" in cargo_type else 200.0, step=100.0, min_value=0.0, disabled=not include_epr_costs)
 
-    epr_recycling_total_usd = ((epr_fee_per_unit * float(container_count)) + battery_passport_fee) if include_epr_costs else 0.0
-    regulatory_permits_total_usd = local_regulatory_permits
-    regulatory_total_usd = epr_recycling_total_usd + regulatory_permits_total_usd
-
     requires_heavy_lift = st.checkbox("Heavy-haul / abnormal-load handling required" if not is_hebrew else "נדרשת הובלה חריגה / מטען כבד", value=(cargo_type == "BESS Container (UN3536 Class 9)"))
-    effective_heavy_lift = heavy_lift_survey if requires_heavy_lift else 0.0
 
-# ----- T5: השוואת מסלולים אינדיקטיבית באירופה -----
 if show_route_optimization:
     with tab5:
         display_site = site_address if site_address else ("Unnamed Site" if not is_hebrew else "אתר ללא שם")
@@ -326,7 +272,43 @@ if show_route_optimization:
             st.markdown(f"* **Inland Drayage to {display_site}:** ~$850 / container")
             st.markdown("* **Key Advantage:** Direct discharge in destination country")
 
-# ----- חישוב פיננסי מדויק -----
+# =========================================================
+# מנוע החישוב הפיננסי (מופעל לאחר שכל משתני ה-UI הוגדרו)
+# =========================================================
+total_ocean_freight = (base_freight_per_unit + baf_surcharge) * float(container_count)
+cif_valuation_base = exw_value_usd + china_inland_drayage + china_origin_thc + total_ocean_freight
+insurance_total_usd = cif_valuation_base * (insurance_pct / 100.0)
+
+customs_valuation_base_usd = cif_valuation_base + insurance_total_usd
+customs_duty_usd = customs_valuation_base_usd * (customs_duty_pct / 100.0)
+destination_thc_total = dest_thc_port_fee * float(container_count)
+
+overdue_days = max(0, actual_port_days - free_days)
+demurrage_total_usd = float(overdue_days) * demurrage_daily_rate * float(container_count)
+external_storage_total_usd = (float(ext_storage_days) * ext_storage_daily_rate * float(container_count)) if use_external_storage else 0.0
+inland_drayage_total_usd = inland_drayage_per_unit * float(container_count)
+
+epr_recycling_total_usd = ((epr_fee_per_unit * float(container_count)) + battery_passport_fee) if include_epr_costs else 0.0
+regulatory_permits_total_usd = local_regulatory_permits
+regulatory_total_usd = epr_recycling_total_usd + regulatory_permits_total_usd
+
+effective_heavy_lift = heavy_lift_survey if requires_heavy_lift else 0.0
+
+if supplier_quote_available:
+    supplier_commercial_price = supplier_quoted_price
+else:
+    est_inland_drayage_calc = inland_drayage_per_unit * float(container_count)
+    supplier_commercial_price_options = {
+        "EXW (Ex Works)": exw_value_usd,
+        "FOB (Free on Board)": exw_value_usd + china_inland_drayage + china_origin_thc,
+        "CIF (Cost, Insurance & Freight)": exw_value_usd + china_inland_drayage + china_origin_thc + total_ocean_freight + insurance_total_usd,
+        "DDP (Delivered Duty Paid)": (
+            exw_value_usd + china_inland_drayage + china_origin_thc + total_ocean_freight + insurance_total_usd
+            + customs_duty_usd + destination_thc_total + est_inland_drayage_calc + site_crane_unloading + effective_heavy_lift + regulatory_total_usd
+        )
+    }
+    supplier_commercial_price = supplier_commercial_price_options.get(incoterm, exw_value_usd)
+
 vat_base_import_usd = customs_valuation_base_usd + customs_duty_usd + destination_thc_total
 vat_total_usd = vat_base_import_usd * (applied_vat / 100.0)
 
