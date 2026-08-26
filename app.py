@@ -5,7 +5,7 @@ import pandas as pd
 # הגדרת תצורת עמוד ושפה
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="BESS Logistics & Landed Cost Control Tower",
+    page_title="BESS Logistics & Regulatory Control Tower",
     page_icon="⚡",
     layout="wide"
 )
@@ -17,17 +17,17 @@ is_hebrew = (lang == "Hebrew (עברית)")
 
 # מילון מונחים דו-לשוני מקיף
 T = {
-    "title": "⚡ BESS Logistics & Landed Cost Control Tower",
-    "caption": "Enterprise Project Cargo Calculator incorporating Full Supply Chain Costs, Incoterms, and Tax Bases" if not is_hebrew else "מחשבון פרויקטלי ארגוני לניהול עלויות יעד, שרשרת אספקה מלאה, Incoterms ובסיסי מס",
+    "title": "⚡ BESS Logistics & Regulatory Control Tower",
+    "caption": "Enterprise Project Cargo Calculator incorporating Supply Chain Costs, Incoterms, DG Class 9 Compliance, Battery Passports & EPR" if not is_hebrew else "מחשבון פרויקטלי ארגוני לניהול עלויות יעד, Incoterms, רגולציה מלאה, חומ\"ס DG Class 9, דרכון סוללה ואחריות סביבתית",
     "scenario_header": "🗂️ Scenario & Incoterm Setup" if not is_hebrew else "🗂️ הגדרות תרחיש ותנאי סחר (Incoterms)",
     "incoterm_label": "Commercial Incoterm (Supplier Scope):" if not is_hebrew else "תנאי סחר מסחרי (אחריות ספק):",
     "currency_label": "Dashboard Main Currency:" if not is_hebrew else "מטבע הצגה ראשי בדשבורד:",
     "tab1": "📋 Cargo & Destination" if not is_hebrew else "📋 פרטי מטען, יעד ומיקום",
     "tab2": "⚓ Supply Chain & Incoterms" if not is_hebrew else "⚓ שרשרת אספקה ותנאי סחר",
     "tab3": "📦 Storage & Site Drayage" if not is_hebrew else "📦 אחסנה, השהיות והובלת אתר",
-    "tab4": "⚖️ Customs & Regulation" if not is_hebrew else "⚖️ מכס, מיסים ורגולציה",
+    "tab4": "⚖️ DG Compliance, Customs & EoL Regulation" if not is_hebrew else "⚖️ רגולציית חומ\"ס DG, מכס, דרכון סוללה וסוף חיים",
     "tab5_eu": "🗺️ Route Optimization" if not is_hebrew else "🗺️ ניתוח מסלולים באירופה",
-    "tab_summary": "📊 Financial Control Summary" if not is_hebrew else "📊 דוח בקרה פיננסית וסיכום",
+    "tab_summary": "📊 Financial & Regulatory Summary" if not is_hebrew else "📊 דוח בקרה פיננסית ורגולטורית",
     "cargo_type": "Cargo Type / Equipment:" if not is_hebrew else "סוג ציוד / מערכת אגירה:",
     "bess_capacity": "Total Project Capacity (MWh):" if not is_hebrew else "קיבולת אגירה כוללת לפרויקט (MWh):",
     "container_cnt": "Container / Unit Count:" if not is_hebrew else "כמות מכולות / יחידות פרויקט:",
@@ -167,7 +167,7 @@ with tab1:
         else:
             suggested_freight = 3360.0
 
-        is_dg = st.checkbox("Dangerous Goods (DG Class 9)" if not is_hebrew else "מטען חומ\"ס (DG Class 9)", value=True if "BESS" in cargo_type else False)
+        is_dg = st.checkbox("Dangerous Goods (DG Class 9 - UN3536)" if not is_hebrew else "מטען חומ\"ס מחלקה 9 (DG Class 9 - UN3536)", value=True if "BESS" in cargo_type else False)
         exw_value_usd = st.number_input(T["exw_val"], value=500000.0, step=10000.0)
 
 # ----- T2: שרשרת אספקה ותנאי סחר -----
@@ -242,46 +242,45 @@ with tab3:
     external_storage_total_usd = (float(ext_storage_days) * ext_storage_daily_rate * float(container_count)) if use_external_storage else 0.0
     inland_drayage_total_usd = inland_drayage_per_unit * float(container_count)
 
-# ----- T4: מכס ורגולציה -----
+# ----- T4: רגולציה מלאה, חומ"ס, דרכון סוללה וסוף חיים (EoL) -----
 with tab4:
     display_site = site_address if site_address else ("Unnamed Site" if not is_hebrew else "אתר ללא שם")
     display_coords = site_coords if site_coords else "N/A"
     display_zip = site_zip if site_zip else "N/A"
 
-    if dest_country == "Israel":
-        st.subheader("🇮🇱 Customs, Taxes & Permits in Israel" if not is_hebrew else "🇮🇱 מכס, מיסים ורגולציה בישראל")
-        col_il1, col_il2 = st.columns(2)
-        with col_il1:
+    st.subheader("🛡️ DG Class 9 Compliance, Battery Passports & End-of-Life Regulation" if not is_hebrew else "🛡️ רגולציית חומ\"ס DG Class 9, דרכון סוללה ותקנות סוף חיים (EoL)")
+    
+    col_reg1, col_reg2 = st.columns(2)
+    with col_reg1:
+        st.markdown("### 📦 Dangerous Goods & Safety Permits")
+        if dest_country == "Israel":
             st.markdown(f"**HS Code (Israel):** `{CUSTOMS_DUTIES['Israel'][cargo_type]['hs_code']}`")
             st.markdown(f"**Customs Duty:** `{customs_duty_pct}%` (Indicative rate)")
-            st.markdown(f"**Import VAT:** `{applied_vat}%` (Recoverable Cash Item)")
-            st.markdown(f"**Site Location:** `{display_site}` (GPS: `{display_coords}`, Zip: `{display_zip}`)")
-            st.info("💡 **Regulatory Note (Israel):** Indicative rates only. Must verify exact classification, origin rules, and Poisons Permit requirements with a licensed customs broker." if not is_hebrew else "💡 **הערה רגולטורית (ישראל):** שיעורים אינדיקטיביים בלבד. חובה לאמת פרט מכס, כללי מקור והיתר רעלים מול עמיל מכס מורשה.")
-
-        with col_il2:
-            st.markdown("**Local Regulation & Environmental Permits**" if not is_hebrew else "**אישורים ורגולציה מקומית בישראל**")
-            epr_fee_per_unit = st.number_input("Environmental / Battery Fee ($):" if not is_hebrew else "אגרת איכות הסביבה / טיפול בסוללות ליחידה ($):", value=200.0 if "BESS" in cargo_type else 50.0, step=50.0)
-            local_regulatory_permits = st.number_input("Dangerous Goods (DG) & Hazardous Permits ($):" if not is_hebrew else "אישורי חומ\"ס, היתר רעלים וכיבוי ($ סה\"כ):", value=1500.0 if is_dg else 400.0, step=100.0)
-    else:
-        st.subheader("🇪🇺 EU Customs & TARIC Lookup" if not is_hebrew else "🇪🇺 מכס באירופה ובדיקת TARIC")
-        hs_code_eu = CUSTOMS_DUTIES["EU"][cargo_type]["hs_code"]
-        taric_url = f"https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en&Taric={hs_code_eu}"
-        col_eu1, col_eu2 = st.columns(2)
-        with col_eu1:
-            st.markdown(f"**HS Code:** `{hs_code_eu}`")
+            st.markdown(f"**Import VAT:** `{applied_vat}%` (Recoverable)")
+            st.info("💡 **Israel Regulatory Requirements:** Import of BESS requires a Ministry of Environmental Protection Poisons Permit (היתר רעלים), Fire & Rescue Authority safety approval, and strict adherence to UN3536 Class 9 transport guidelines.")
+        else:
+            hs_code_eu = CUSTOMS_DUTIES["EU"][cargo_type]["hs_code"]
+            taric_url = f"https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en&Taric={hs_code_eu}"
+            st.markdown(f"**EU HS Code:** `{hs_code_eu}`")
             st.markdown(f"**EU Duty Rate:** `{customs_duty_pct}%` (Indicative)")
-            st.markdown(f"**Project Site:** `{display_site}` (GPS: `{display_coords}`, Zip: `{display_zip}`)")
-            st.link_button("🔗 Open Official EU TARIC Database (Verify manually)" if not is_hebrew else "🔗 פתח מסד נתונים רשמי EU TARIC (לשם אימות ידני)", taric_url)
-        with col_eu2:
-            st.markdown("**EPR Fees & Environmental Regulation**" if not is_hebrew else "**אגרות EPR ורגולציה סביבתית**")
-            epr_fee_per_unit = st.number_input("EPR / EoL Recycling Fee ($):" if not is_hebrew else "אגרת מיחזור סוללות / אחריות יצרן מורחבת ליחידה ($):", value=450.0 if "BESS" in cargo_type else 80.0, step=50.0)
-            local_regulatory_permits = st.number_input("Dangerous Goods (DG) & Hazardous Permits ($):" if not is_hebrew else "אישורים רגולטוריים / היתרי חומ\"ס מקומיים ($ סה\"כ):", value=1200.0 if is_dg else 300.0, step=100.0)
+            st.link_button("🔗 Open Official EU TARIC Database", taric_url)
+            st.info("💡 **EU Battery Regulation Compliance:** Shipments into the EU require adherence to the new EU Battery Regulation, ensuring full supply chain traceability and safety standards.")
 
-    epr_total_usd = (epr_fee_per_unit * float(container_count)) + local_regulatory_permits
+        local_regulatory_permits = st.number_input("Hazardous Permits & DG Clearance ($):" if not is_hebrew else "אישורי חומ\"ס, היתר רעלים ואישורי כיבוי ($ סה\"כ):", value=1500.0 if is_dg else 400.0, step=100.0)
+
+    with col_reg2:
+        st.markdown("### ♻️ Battery Passport, EPR & End-of-Life (EoL)")
+        st.caption("Mandatory compliance costs for recycling, carbon footprint tracking, and producer responsibility." if not is_hebrew else "עלויות חובה לציות לרגולציית מיחזור, מעקב טביעת רגל פחמנית ואחריות יצרן.")
+        
+        epr_fee_per_unit = st.number_input("EPR / Battery Recycling Fee per Unit ($):" if not is_hebrew else "אגרת מיחזור סוללות / EPR ליחידה ($):", value=450.0 if "BESS" in cargo_type else 80.0, step=50.0)
+        battery_passport_fee = st.number_input("Battery Passport & Carbon Audit Fee ($):" if not is_hebrew else "עלות הפקת דרכון סוללה ובדיקת טביעת רגל פחמנית ($ סה\"כ):", value=1200.0 if "BESS" in cargo_type else 200.0, step=100.0)
+
+    epr_total_usd = (epr_fee_per_unit * float(container_count)) + local_regulatory_permits + battery_passport_fee
 
 # ----- T5: ניתוח מסלולים באירופה -----
 if show_route_optimization:
     with tab5:
+        display_site = site_address if site_address else ("Unnamed Site" if not is_hebrew else "אתר ללא שם")
         st.subheader(f"🗺️ Illustrative Port Route Comparison ({dest_country})" if not is_hebrew else f"🗺️ ניתוח מסלולים אינדיקטיבי ({dest_country})")
         st.caption(f"Route comparison for site: {display_site}" if not is_hebrew else f"השוואת מסלולים לאתר הפרויקט: {display_site}")
         
@@ -297,7 +296,7 @@ if show_route_optimization:
             st.markdown(f"* **Inland Drayage to {display_site}:** ~$850 / container")
             st.markdown("* **Key Advantage:** Direct discharge in destination country")
 
-# ----- חישוב פיננסי מדויק -----
+# ----- חישוב פיננסי מדויק כולל רגולציה וסוף חיים -----
 cif_valuation_base = exw_value_usd + china_inland_drayage + china_origin_thc + total_ocean_freight
 insurance_total_usd = cif_valuation_base * (insurance_pct / 100.0)
 
@@ -340,7 +339,7 @@ kwh_cost_display, _ = convert_from_usd(total_supply_chain_cost_per_kwh, display_
 
 # ----- T Summary -----
 with (tab6 if show_route_optimization else tab6):
-    st.subheader(f"📊 Financial Control Dashboard - {incoterm} ({display_currency})")
+    st.subheader(f"📊 Financial & Regulatory Control Dashboard - {incoterm} ({display_currency})")
     
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("Buyer Landed Cost (ex-VAT)", f"{curr_symbol} {display_val:,.2f}")
@@ -360,7 +359,7 @@ with (tab6 if show_route_optimization else tab6):
         "Marine Insurance" if not is_hebrew else "ביטוח ימי",
         "Indicative Import Customs Duty" if not is_hebrew else "מכס יבוא אינדיקטיבי",
         "Destination THC & Wharfage" if not is_hebrew else "אגרות נמל יעד (Dest THC)",
-        "EPR & Environmental Recycling" if not is_hebrew else "אגרות EPR ורגולציה סביבתית",
+        "DG Permits, Battery Passports & EPR / EoL" if not is_hebrew else "אישורי חומ\"ס, דרכון סוללה ואגרות מיחזור EPR",
         "Port Demurrage Charges" if not is_hebrew else "קנסות השהיה בנמל (Demurrage)",
         "External Staging Yard Storage" if not is_hebrew else "אחסנה חיצונית בחצר היערכות",
         "Inland Drayage (Port to Site)" if not is_hebrew else "הובלה יבשתית (מהנמל לאתר)",
@@ -381,7 +380,6 @@ with (tab6 if show_route_optimization else tab6):
         "Amount (USD)": amounts_no_vat + [vat_total_usd]
     })
     
-    # חישוב אחוזים תקין ונקי המבוסס על שורות העלות ללא מע״מ
     pct_list = [(amt / total_landed_cost_ex_vat) * 100.0 for amt in amounts_no_vat] + [0.0]
     df_summary["% of Landed Cost"] = [f"{p:.2f}%" for p in pct_list]
     
@@ -390,11 +388,11 @@ with (tab6 if show_route_optimization else tab6):
     st.markdown("---")
     csv_data = df_summary.to_csv(index=False).encode('utf-8-sig')
     st.download_button(
-        label="📥 Export Financial Breakdown Report (CSV/Excel)" if not is_hebrew else "📥 הורד דוח פיננסי מלא (CSV/Excel)",
+        label="📥 Export Financial & Regulatory Report (CSV/Excel)" if not is_hebrew else "📥 הורד דוח פיננסי ורגולטורי מלא (CSV/Excel)",
         data=csv_data,
-        file_name=f"BESS_Financial_Report_{incoterm.split(' ')[0]}.csv",
+        file_name=f"BESS_Regulatory_Financial_Report_{incoterm.split(' ')[0]}.csv",
         mime="text/csv"
     )
 
 st.markdown("---")
-st.caption("BESS Logistics Control Tower — Enterprise Edition.")
+st.caption("BESS Logistics & Regulatory Control Tower — Enterprise Edition.")
