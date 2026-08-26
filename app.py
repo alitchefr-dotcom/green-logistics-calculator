@@ -170,7 +170,7 @@ with tab1:
         is_dg = st.checkbox("Dangerous Goods (DG Class 9)" if not is_hebrew else "מטען חומ\"ס (DG Class 9)", value=True if "BESS" in cargo_type else False)
         exw_value_usd = st.number_input(T["exw_val"], value=500000.0, step=10000.0)
 
-# ----- T2: שרשרת אספקה ותנאי סחר (הפרדת Supplier Price מ-Buyer Landed Cost) -----
+# ----- T2: שרשרת אספקה ותנאי סחר -----
 with tab2:
     st.subheader("Full Supply Chain & Incoterms Allocation" if not is_hebrew else "שרשרת אספקה מלאה והקצאת עלויות לפי Incoterms")
     st.info(f"💡 Current commercial Incoterm: **{incoterm}**. This defines the seller's price scope, while the buyer's Landed Cost includes the full end-to-end chain." if not is_hebrew else f"💡 תנאי הסחר המסחרי: **{incoterm}**. הגדרה זו קובעת את מחיר הספק, בעוד עלות היעד הכוללת (Landed Cost) משקללת את כל שרשרת האספקה עד לאתר.")
@@ -191,7 +191,6 @@ with tab2:
         customs_duty_pct = st.number_input("Indicative Import Customs Duty (%):" if not is_hebrew else "שיעור מכס אינדיקטיבי (%):", value=float(CUSTOMS_DUTIES[region_key][cargo_type]["duty_pct"]), step=0.1)
         insurance_pct = st.number_input("Marine Insurance (% of CIF base):" if not is_hebrew else "פרמיית ביטוח ימי (% מערך ה-CIF):", value=DEFAULT_INSURANCE_RATES.get(dest_country, 0.15), step=0.01)
 
-    # חישוב רכיבי השרשרת המלאים
     full_supply_chain = {
         "equipment": exw_value_usd,
         "china_inland": china_inland_drayage,
@@ -204,7 +203,6 @@ with tab2:
     
     total_ocean_freight = full_supply_chain["ocean_freight"] + full_supply_chain["baf"]
 
-    # מטריצת אחריות ספק לפי Incoterm
     supplier_included_scope = {
         "EXW (Ex Works)": ["equipment"],
         "FOB (Free on Board)": ["equipment", "china_inland", "origin_thc"],
@@ -215,7 +213,7 @@ with tab2:
     current_scope = supplier_included_scope.get(incoterm, ["equipment"])
     supplier_commercial_price = sum(full_supply_chain[k] for k in current_scope if k in full_supply_chain)
 
-# ----- T3: אחסנה והובלה יבשתית (הפרדה מלאה) -----
+# ----- T3: אחסנה והובלה יבשתית -----
 with tab3:
     st.subheader("Port Demurrage, Storage & Inland Drayage" if not is_hebrew else "קנסות נמל, אחסנה חיצונית והובלה יבשתית לאתר")
     col_x, col_y = st.columns(2)
@@ -299,19 +297,16 @@ if show_route_optimization:
             st.markdown(f"* **Inland Drayage to {display_site}:** ~$850 / container")
             st.markdown("* **Key Advantage:** Direct discharge in destination country")
 
-# ----- חישוב פיננסי מדויק (בהתאם להערות קלות') -----
-# בסיס הערכת מכס תמיד כולל את כל הוצאות ההובלה והביטוח עד גבול היבוא (ללא תלות ב-Incoterm)
+# ----- חישוב פיננסי מדויק -----
 cif_valuation_base = exw_value_usd + china_inland_drayage + china_origin_thc + total_ocean_freight
 insurance_total_usd = cif_valuation_base * (insurance_pct / 100.0)
 
 customs_valuation_base_usd = cif_valuation_base + insurance_total_usd
 customs_duty_usd = customs_valuation_base_usd * (customs_duty_pct / 100.0)
 
-# בסיס מע"מ יבוא נקי (מכס + ערך סחורה + הובלה ימית + היטלים בנמל)
 vat_base_import_usd = customs_valuation_base_usd + customs_duty_usd + (dest_thc_port_fee * float(container_count))
 vat_total_usd = vat_base_import_usd * (applied_vat / 100.0)
 
-# סך כל עלויות שרשרת האספקה של הקונה (Buyer Landed Cost)
 buyer_supply_chain_total = (
     exw_value_usd
     + china_inland_drayage
@@ -334,22 +329,6 @@ total_cash_requirement_incl_vat = total_landed_cost_ex_vat + vat_total_usd
 
 total_kwh = bess_mwh * 1000.0 if bess_mwh > 0 else 1.0
 total_supply_chain_cost_per_kwh = total_landed_cost_ex_vat / total_kwh
-
-logistics_only_usd = (
-    china_inland_drayage
-    + china_origin_thc
-    + total_ocean_freight
-    + insurance_total_usd
-    + (dest_thc_port_fee * float(container_count))
-    + inland_drayage_total_usd
-    + demurrage_total_usd
-    + external_storage_total_usd
-    + site_crane_unloading
-    + local_regulatory_permits
-    + epr_total_usd
-    + heavy_lift_survey
-)
-logistics_cost_per_kwh = logistics_only_usd / total_kwh
 
 # המרות מטבע לתצוגה
 display_val, curr_symbol = convert_from_usd(total_landed_cost_ex_vat, display_currency)
@@ -390,26 +369,21 @@ with (tab6 if show_route_optimization else tab6):
         "Import VAT (Recoverable Cash Item)" if not is_hebrew else "מע\"מ יבוא (ניתן לקיזוז)"
     ]
     
-    df_summary = pd.DataFrame({
-        "Cost Component" if not is_hebrew else "רכיב עלות": cost_labels,
-        "Amount (USD)": [
-            exw_value_usd, china_inland_drayage, china_origin_thc, 
-            total_ocean_freight, insurance_total_usd, customs_duty_usd, 
-            (dest_thc_port_fee * float(container_count)), epr_total_usd, demurrage_total_usd, 
-            external_storage_total_usd, inland_drayage_total_usd, site_crane_unloading, contingency_usd, vat_total_usd
-        ]
-    })
-    
-    df_summary["% of Landed Cost ex-VAT"] = (df_summary["Amount (USD)[:-1]"] / total_landed_cost_ex_vat) * 100.0 if len(df_summary) > 0 else 0.0
-    # תיקון אחוזי פילוח מול ex-VAT בלבד (הערת קלות')
     amounts_no_vat = [
         exw_value_usd, china_inland_drayage, china_origin_thc, 
         total_ocean_freight, insurance_total_usd, customs_duty_usd, 
         (dest_thc_port_fee * float(container_count)), epr_total_usd, demurrage_total_usd, 
         external_storage_total_usd, inland_drayage_total_usd, site_crane_unloading, contingency_usd
     ]
-    df_summary["% of Landed Cost"] = [(amt / total_landed_cost_ex_vat) * 100.0 for amt in amounts_no_vat] + [0.0]
-    df_summary["% of Landed Cost"] = df_summary["% of Landed Cost"].map("{:.2f}%".format)
+    
+    df_summary = pd.DataFrame({
+        "Cost Component" if not is_hebrew else "רכיב עלות": cost_labels,
+        "Amount (USD)": amounts_no_vat + [vat_total_usd]
+    })
+    
+    # חישוב אחוזים תקין ונקי המבוסס על שורות העלות ללא מע״מ
+    pct_list = [(amt / total_landed_cost_ex_vat) * 100.0 for amt in amounts_no_vat] + [0.0]
+    df_summary["% of Landed Cost"] = [f"{p:.2f}%" for p in pct_list]
     
     st.dataframe(df_summary, use_container_width=True)
     
