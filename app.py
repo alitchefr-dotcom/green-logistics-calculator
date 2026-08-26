@@ -157,7 +157,6 @@ with tab1:
     with col2:
         cargo_type = st.selectbox(T["cargo_type"], list(CUSTOMS_DUTIES["EU"].keys()))
         
-        # הפרדה בין כמות מערכות למכולות (הערת קלות')
         sub_c1, sub_c2 = st.columns(2)
         with sub_c1:
             system_count = st.number_input(T["system_cnt"], min_value=1, value=10, step=1)
@@ -184,12 +183,12 @@ with tab1:
 
         exw_value_usd = st.number_input(T["exw_val"], value=500000.0, step=10000.0, min_value=0.0)
 
-# חישוב מקדים של ביטוח ומכס עבור מחיר הספק ותנאי DDP/CIF אמיתיים
+# חישוב מקדים של ביטוח ומכס עבור מחיר הספק ותנאי DDP/CIF
 base_freight_est = suggested_freight * float(container_count)
 cif_base_for_insurance = exw_value_usd + 2200.0 + 1300.0 + base_freight_est
 insurance_total_usd = cif_base_for_insurance * (DEFAULT_INSURANCE_RATES.get(dest_country, 0.15) / 100.0)
 
-# ----- T2: שרשרת אספקה ותנאי סחר (תיקון מקיף ל-DDP הכולל מכס, הובלה ומעבר) -----
+# ----- T2: שרשרת אספקה ותנאי סחר -----
 with tab2:
     st.subheader("Full Supply Chain & Incoterms Allocation" if not is_hebrew else "שרשרת אספקה מלאה והקצאת עלויות לפי Incoterms")
     st.info(f"💡 Current commercial Incoterm: **{incoterm}**. Defines seller's price scope including customs and local delivery under DDP." if not is_hebrew else f"💡 תנאי הסחר המסחרי: **{incoterm}**. מגדיר את היקף מחיר הספק, לרבות מכס והובלה לאתר תחת DDP.")
@@ -218,13 +217,11 @@ with tab2:
     customs_duty_usd = customs_valuation_base_usd * (customs_duty_pct / 100.0)
     destination_thc_total = dest_thc_port_fee * float(container_count)
 
-    # בחירת הצעת מחיר ספק בפועל מול חישוב מובנה (הערת קלות')
     supplier_quote_available = st.checkbox("Enter actual supplier commercial quote" if not is_hebrew else "הזן הצעת מחיר מסחרית אמיתית מהספק", value=False)
     if supplier_quote_available:
         supplier_quoted_price = st.number_input("Supplier Quoted Price under Selected Incoterm (USD):" if not is_hebrew else "מחיר ספק מוצע תחת תנאי הסחר הנבחר (USD):", min_value=0.0, value=exw_value_usd)
         supplier_commercial_price = supplier_quoted_price
     else:
-        # חישוב מחיר ספק לפי Incoterm מדויק הכולל מכס ועלויות יעד ב-DDP (הערות קלות')
         default_drayage_val = 1850.0 if "Burgas" in dest_port else 600.0
         est_inland_drayage = default_drayage_val * float(container_count)
         
@@ -268,7 +265,7 @@ with tab3:
     external_storage_total_usd = (float(ext_storage_days) * ext_storage_daily_rate * float(container_count)) if use_external_storage else 0.0
     inland_drayage_total_usd = inland_drayage_per_unit * float(container_count)
 
-# ----- T4: רגולציה מלאה, חומ"ס, מטענים כבדים והיתרים -----
+# ----- T4: רגולציה מלאה, חומ"ס, דרכון סוללה ואחריות סביבתית אופציונלית -----
 with tab4:
     display_site = site_address if site_address else ("Unnamed Site" if not is_hebrew else "אתר ללא שם")
     display_coords = site_coords if site_coords else "N/A"
@@ -303,12 +300,10 @@ with tab4:
         epr_fee_per_unit = st.number_input("EPR / Battery Recycling Fee per Unit ($):" if not is_hebrew else "אגרת מיחזור סוללות / EPR ליחידה ($):", value=450.0 if "BESS" in cargo_type else 80.0, step=50.0, min_value=0.0, disabled=not include_epr_costs)
         battery_passport_fee = st.number_input("Battery Passport & Carbon Audit Fee ($):" if not is_hebrew else "עלות הפקת דרכון סוללה ובדיקת טביעת רגל פחמנית ($ סה\"כ):", value=1200.0 if "BESS" in cargo_type else 200.0, step=100.0, min_value=0.0, disabled=not include_epr_costs)
 
-    # הפרדת רגולציית EPR מיתרי חומ"ס לפי המלצת קלוד (מניעת כפל עלויות)
     epr_recycling_total_usd = ((epr_fee_per_unit * float(container_count)) + battery_passport_fee) if include_epr_costs else 0.0
     regulatory_permits_total_usd = local_regulatory_permits
     regulatory_total_usd = epr_recycling_total_usd + regulatory_permits_total_usd
 
-    # הפעלה מותנית של הובלה כבדה (Heavy Lift) לפי בחירת המשתמש (הערת קלות')
     requires_heavy_lift = st.checkbox("Heavy-haul / abnormal-load handling required" if not is_hebrew else "נדרשת הובלה חריגה / מטען כבד", value=(cargo_type == "BESS Container (UN3536 Class 9)"))
     effective_heavy_lift = heavy_lift_survey if requires_heavy_lift else 0.0
 
@@ -353,13 +348,12 @@ buyer_supply_chain_total = (
 
 contingency_usd = buyer_supply_chain_total * (ddp_contingency_pct / 100.0)
 total_landed_cost_ex_vat = buyer_supply_chain_total + contingency_usd
-vat_recoverable = vat_total_usd # מניחים כברירת מחדל שניתן לקיזוז או לפי קונפיגורציה
+vat_recoverable = vat_total_usd
 total_cash_requirement_incl_vat = total_landed_cost_ex_vat + vat_recoverable
 
 total_kwh = bess_mwh * 1000.0 if bess_mwh > 0 else 1.0
 total_supply_chain_cost_per_kwh = total_landed_cost_ex_vat / total_kwh
 
-# חישוב עלות לוגיסטיקה נטו (ללא כפל של local_regulatory_permits) לפי המלצת קלוד
 logistics_only_usd = (
     china_inland_drayage
     + china_origin_thc
