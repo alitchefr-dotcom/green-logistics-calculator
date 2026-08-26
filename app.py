@@ -5,7 +5,7 @@ import pandas as pd
 # הגדרת תצורת עמוד ושפה
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="BESS Logistics & Regulatory Control Tower",
+    page_title="Renewable Energy Logistics & Landed Cost Calculator",
     page_icon="⚡",
     layout="wide"
 )
@@ -17,7 +17,7 @@ is_hebrew = (lang == "Hebrew (עברית)")
 
 # מילון מונחים דו-לשוני מקיף
 T = {
-    "title": "⚡ BESS Logistics & Regulatory Control Tower",
+    "title": "⚡ Renewable Energy Logistics & Landed Cost Calculator",
     "caption": "Enterprise Project Cargo Calculator incorporating Supply Chain Costs, Incoterms, DG Compliance, Battery Passports & EPR" if not is_hebrew else "מחשבון פרויקטלי ארגוני לניהול עלויות יעד, Incoterms, רגולציה מלאה, חומ\"ס DG, דרכון סוללה ואחריות סביבתית",
     "scenario_header": "🗂️ Scenario & Incoterm Setup" if not is_hebrew else "🗂️ הגדרות תרחיש ותנאי סחר (Incoterms)",
     "incoterm_label": "Commercial Incoterm (Supplier Scope):" if not is_hebrew else "תנאי סחר מסחרי (אחריות ספק):",
@@ -418,4 +418,4 @@ with (tab6 if show_route_optimization else tab6):
     )
 
 st.markdown("---")
-st.caption("BESS Logistics & Regulatory Control Tower — Enterprise Edition.")
+st.caption("Renewable Energy Logistics & Landed Cost Calculator — Enterprise Edition.")
