@@ -326,7 +326,7 @@ if show_route_optimization:
             st.markdown(f"* **Inland Drayage to {display_site}:** ~$850 / container")
             st.markdown("* **Key Advantage:** Direct discharge in destination country")
 
-# ----- חישוב פיננסי מדויק ותיקון באג כפל היתרים -----
+# ----- חישוב פיננסי מדויק -----
 vat_base_import_usd = customs_valuation_base_usd + customs_duty_usd + destination_thc_total
 vat_total_usd = vat_base_import_usd * (applied_vat / 100.0)
 
