@@ -409,7 +409,13 @@ with (tab6 if show_route_optimization else tab6):
     st.dataframe(df_summary, use_container_width=True)
     
     st.markdown("---")
-    csv_data = df_summary.to_csv(index=False).encode('utf-8-sig')
+    
+    # הגדרת קידוד נכון וכיוון פתיחה ב-Excel (משמאל לימין באנגלית, מימין לשמאל בעברית)
+    if is_hebrew:
+        csv_data = df_summary.to_csv(index=False).encode('utf-8-sig')
+    else:
+        csv_data = df_summary.to_csv(index=False).encode('utf-8')
+        
     st.download_button(
         label="📥 Export Financial & Regulatory Report (CSV/Excel)" if not is_hebrew else "📥 הורד דוח פיננסי ורגולטורי מלא (CSV/Excel)",
         data=csv_data,
