@@ -18,7 +18,7 @@ is_hebrew = (lang == "Hebrew (עברית)")
 # מילון מונחים דו-לשוני מקיף
 T = {
     "title": "⚡ Renewable Energy Logistics & Landed Cost Calculator",
-    "caption": "Enterprise Project Cargo Calculator incorporating Supply Chain Costs, Incoterms, DG Compliance, Battery Passports & EPR" if not is_hebrew else "מחשבון פרויקטלי ארגוני לניהול עלויות יעד, Incoterms, רגולציה מלאה, חומ\"ס DG, דרכון סוללה ואחריות סביבתית",
+    "caption": "Enterprise Project Cargo Calculator incorporating Supply Chain Costs, Incoterms, DG Class 9 Compliance, Battery Passports & EPR" if not is_hebrew else "מחשבון פרויקטלי ארגוני לניהול עלויות יעד, Incoterms, רגולציה מלאה, חומ\"ס DG Class 9, דרכון סוללה ואחריות סביבתית",
     "scenario_header": "🗂️ Scenario & Incoterm Setup" if not is_hebrew else "🗂️ הגדרות תרחיש ותנאי סחר (Incoterms)",
     "incoterm_label": "Commercial Incoterm (Supplier Scope):" if not is_hebrew else "תנאי סחר מסחרי (אחריות ספק):",
     "currency_label": "Dashboard Main Currency:" if not is_hebrew else "מטבע הצגה ראשי בדשבורד:",
@@ -165,12 +165,16 @@ with tab1:
         with sub_c2:
             container_count = st.number_input(T["container_cnt"], min_value=1, value=10, step=1)
 
+        if system_count != container_count:
+            st.warning("⚠️ System count differs from container count. Verify mapping between systems and shipping units." if not is_hebrew else "⚠️ מספר המערכות שונה ממספר המכולות. מומלץ לוודא את מיפוי יחידות ההובלה מול המערכות.")
+
         bess_mwh = st.number_input(T["bess_capacity"], value=40.0, step=5.0, min_value=0.1)
         
-        if container_count > 0:
-            mwh_per_unit = bess_mwh / container_count
-            if mwh_per_unit > 8.0:
-                st.warning(f"⚠️ High capacity per unit ({mwh_per_unit:.2f} MWh/container). Please verify container count vs total MWh." if not is_hebrew else f"⚠️ קיבולת גבוהה יחסית ליחידה ({mwh_per_unit:.2f} MWh למכולה). מומלץ לוודא את נתוני התכנון.")
+        if container_count > 0 and system_count > 0:
+            mwh_per_container = bess_mwh / container_count
+            mwh_per_system = bess_mwh / system_count
+            if mwh_per_container > 8.0:
+                st.warning(f"⚠️ High capacity per container ({mwh_per_container:.2f} MWh/container)." if not is_hebrew else f"⚠️ קיבולת גבוהה יחסית למכולה ({mwh_per_container:.2f} MWh).")
 
         if cargo_type == "BESS Container (UN3536 Class 9)":
             weight_tier = st.selectbox("Weight Tier (MTS / Ton):" if not is_hebrew else "מדרגת משקל ליחידת BESS (MTS / Ton):", [
@@ -228,7 +232,8 @@ with tab3:
     st.markdown("---")
     col_ddp1, col_ddp2 = st.columns(2)
     with col_ddp1:
-        site_crane_unloading = st.number_input("Site Crane & Pad Offloading ($):" if not is_hebrew else "מנוף פריקה כבד באתר + הצבה ($ סה\"כ):", value=8500.0, step=500.0, min_value=0.0)
+        include_site_crane = st.checkbox("Include site crane and pad offloading" if not is_hebrew else "כלול מנוף פריקה והצבה באתר", value=True)
+        site_crane_unloading = st.number_input("Site Crane & Pad Offloading ($):" if not is_hebrew else "מנוף פריקה כבד באתר + הצבה ($ סה\"כ):", value=8500.0, step=500.0, min_value=0.0, disabled=not include_site_crane)
     with col_ddp2:
         ddp_contingency_pct = st.number_input("Project Risk Contingency (%):" if not is_hebrew else "מקדם סיכון ובלתי מתוכנן פרויקטלי (%):", value=5.0, step=1.0, min_value=0.0, max_value=100.0)
 
@@ -288,23 +293,25 @@ demurrage_total_usd = float(overdue_days) * demurrage_daily_rate * float(contain
 external_storage_total_usd = (float(ext_storage_days) * ext_storage_daily_rate * float(container_count)) if use_external_storage else 0.0
 inland_drayage_total_usd = inland_drayage_per_unit * float(container_count)
 
-epr_recycling_total_usd = ((epr_fee_per_unit * float(container_count)) + battery_passport_fee) if include_epr_costs else 0.0
+epr_recycling_total_usd = (epr_fee_per_unit * float(container_count)) if include_epr_costs else 0.0
+battery_passport_total_usd = battery_passport_fee if include_epr_costs else 0.0
 regulatory_permits_total_usd = local_regulatory_permits
-regulatory_total_usd = epr_recycling_total_usd + regulatory_permits_total_usd
 
+effective_site_crane = site_crane_unloading if include_site_crane else 0.0
 effective_heavy_lift = heavy_lift_survey if requires_heavy_lift else 0.0
 
 if supplier_quote_available:
     supplier_commercial_price = supplier_quoted_price
 else:
-    est_inland_drayage_calc = inland_drayage_per_unit * float(container_count)
     supplier_commercial_price_options = {
         "EXW (Ex Works)": exw_value_usd,
         "FOB (Free on Board)": exw_value_usd + china_inland_drayage + china_origin_thc,
         "CIF (Cost, Insurance & Freight)": exw_value_usd + china_inland_drayage + china_origin_thc + total_ocean_freight + insurance_total_usd,
         "DDP (Delivered Duty Paid)": (
             exw_value_usd + china_inland_drayage + china_origin_thc + total_ocean_freight + insurance_total_usd
-            + customs_duty_usd + destination_thc_total + est_inland_drayage_calc + site_crane_unloading + effective_heavy_lift + regulatory_total_usd
+            + customs_duty_usd + destination_thc_total + inland_drayage_total_usd + effective_site_crane 
+            + regulatory_permits_total_usd + epr_recycling_total_usd + battery_passport_total_usd + effective_heavy_lift
+            + demurrage_total_usd + external_storage_total_usd
         )
     }
     supplier_commercial_price = supplier_commercial_price_options.get(incoterm, exw_value_usd)
@@ -323,8 +330,10 @@ buyer_supply_chain_total = (
     + demurrage_total_usd
     + external_storage_total_usd
     + inland_drayage_total_usd
-    + site_crane_unloading
-    + regulatory_total_usd
+    + effective_site_crane
+    + regulatory_permits_total_usd
+    + epr_recycling_total_usd
+    + battery_passport_total_usd
     + effective_heavy_lift
 )
 
@@ -345,8 +354,10 @@ logistics_only_usd = (
     + inland_drayage_total_usd
     + demurrage_total_usd
     + external_storage_total_usd
-    + site_crane_unloading
-    + regulatory_total_usd
+    + effective_site_crane
+    + regulatory_permits_total_usd
+    + epr_recycling_total_usd
+    + battery_passport_total_usd
     + effective_heavy_lift
 )
 logistics_cost_per_kwh = logistics_only_usd / total_kwh
@@ -382,7 +393,9 @@ with (tab6 if show_route_optimization else tab6):
         "Marine Insurance" if not is_hebrew else "ביטוח ימי",
         "Indicative Import Customs Duty" if not is_hebrew else "מכס יבוא אינדיקטיבי",
         "Destination THC & Wharfage" if not is_hebrew else "אגרות נמל יעד (Dest THC)",
-        "DG Permits, Battery Passports & EPR / EoL" if not is_hebrew else "אישורי חומ\"ס, דרכון סוללה ואגרות מיחזור EPR",
+        "Hazardous Permits & DG Clearance" if not is_hebrew else "אישורי חומ\"ס והיתר רעלים",
+        "Battery Passport & Carbon Audit" if not is_hebrew else "דרכון סוללה ובדיקת פחמן",
+        "EPR / Battery Recycling Fee" if not is_hebrew else "אגרת מיחזור סוללות / EPR",
         "Port Demurrage Charges" if not is_hebrew else "קנסות השהיה בנמל (Demurrage)",
         "External Staging Yard Storage" if not is_hebrew else "אחסנה חיצונית בחצר היערכות",
         "Inland Drayage (Port to Site)" if not is_hebrew else "הובלה יבשתית (מהנמל לאתר)",
@@ -394,8 +407,9 @@ with (tab6 if show_route_optimization else tab6):
     amounts_no_vat = [
         exw_value_usd, china_inland_drayage, china_origin_thc, 
         total_ocean_freight, insurance_total_usd, customs_duty_usd, 
-        destination_thc_total, regulatory_total_usd, demurrage_total_usd, 
-        external_storage_total_usd, inland_drayage_total_usd, site_crane_unloading, contingency_usd
+        destination_thc_total, regulatory_permits_total_usd, battery_passport_total_usd,
+        epr_recycling_total_usd, demurrage_total_usd, external_storage_total_usd, 
+        inland_drayage_total_usd, effective_site_crane, contingency_usd
     ]
     
     df_summary = pd.DataFrame({
@@ -410,7 +424,6 @@ with (tab6 if show_route_optimization else tab6):
     
     st.markdown("---")
     
-    # הגדרת קידוד נכון וכיוון פתיחה ב-Excel (משמאל לימין באנגלית, מימין לשמאל בעברית)
     if is_hebrew:
         csv_data = df_summary.to_csv(index=False).encode('utf-8-sig')
     else:
